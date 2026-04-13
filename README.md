@@ -1,1570 +1,937 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// ============================================================
+//  SSCU CASHBOOK — FULL PRODUCTION APP (FIXED)
+//  Built with React + Firebase (Auth + Firestore)
+//
+//  🔧 SETUP CHECKLIST:
+//  1. npm install firebase lucide-react
+//  2. npm install -D tailwindcss postcss autoprefixer
+//  3. npx tailwindcss init -p
+//  4. Add Tailwind directives to your index.css (see below)
+//  5. Configure tailwind.config.js content to include "./src/**/*.{js,jsx}"
+//  6. Fill in YOUR_* values in FIREBASE CONFIG (or use .env)
+// ============================================================
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+
+// ── FIREBASE IMPORTS ─────────────────────────────────────────
 import { initializeApp } from 'firebase/app';
-import { 
-    getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged 
+import {
+  getAuth,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  signOut,
+  updateProfile,
 } from 'firebase/auth';
-import { 
-    getFirestore, addDoc, onSnapshot, collection, setLogLevel, 
-    query, where, updateDoc, doc
+import {
+  getFirestore,
+  collection,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  serverTimestamp,
+  enableIndexedDbPersistence,
+  getDocs,
+  writeBatch,
 } from 'firebase/firestore';
-import { 
-    PiggyBank, Search, Plus, DollarSign, Users, Calendar, Settings, Clock, Zap, User, ArrowLeft, AlertTriangle, X, TrendingUp, TrendingDown 
+
+// ── LUCIDE ICONS ─────────────────────────────────────────────
+import {
+  LayoutDashboard, PlusCircle, MinusCircle, BookOpen, Settings,
+  Search, ArrowUpRight, ArrowDownLeft, ChevronRight, Trash2,
+  Edit3, CheckCircle2, Circle, ArrowLeft, UserPlus, History,
+  Building2, FileDown, Settings2, MoreHorizontal, X, PieChart,
+  Palette, ShieldCheck, Database, BellRing, Languages,
+  BadgeDollarSign, Sun, Moon, Copyright, LogIn, PhoneCall,
+  Mail, Eye, EyeOff, Loader2, AlertCircle, CheckCircle,
 } from 'lucide-react';
 
-// --- ENVIRONMENT & FIREBASE INITIALIZATION SETUP ---
+// ╔══════════════════════════════════════════════════════════╗
+// ║            🔑  FIREBASE CONFIG — MOVE TO .env            ║
+// ╚══════════════════════════════════════════════════════════╝
+const firebaseConfig = {
+  apiKey: "AIzaSyCp3RCIIlZpDgZvH7YF6vqzzA5shYymO24",
+  authDomain: "sscu-cashbook.firebaseapp.com",
+  projectId: "sscu-cashbook",
+  storageBucket: "sscu-cashbook.firebasestorage.app",
+  messagingSenderId: "616298686903",
+  appId: "1:616298686903:web:01396d5f1af5c0eb40a032",
+  measurementId: "G-73H1ZPJ9H4"
+};
 
-// Mandatory global variables provided by the environment
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-sscu-app';
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+// ──────────────────────────────────────────────────────────────
 
+// ── FIREBASE INITIALISATION ───────────────────────────────────
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
-// Define the root component
-const App = () => {
-    const [db, setDb] = useState(null);
-    const [auth, setAuth] = useState(null);
-    const [userId, setUserId] = useState(null);
-    const [isAuthReady, setIsAuthReady] = useState(false);
-    
-    const [currentView, setCurrentView] = useState('Dashboard'); 
-    const [customers, setCustomers] = useState([]);
-    const [loans, setLoans] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    
-    // Modals & Drawers
-    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-    // RENAMED: from isTransactionModalOpen to isTransactionDrawerOpen
-    const [isTransactionDrawerOpen, setIsTransactionDrawerOpen] = useState(false); 
-    const [isDeductionConfirmationOpen, setIsDeductionConfirmationOpen] = useState(false); 
-    const [isLoanModalOpen, setIsLoanModalOpen] = useState(false); 
-    const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState(false); 
+// Enable offline support
+enableIndexedDbPersistence(db).catch((err) => {
+  console.warn("Offline persistence failed:", err);
+});
 
-    // State for transaction and repayment flows
-    const [selectedLoanForRepayment, setSelectedLoanForRepayment] = useState(null); 
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
-    const [transactions, setTransactions] = useState([]);
+// ── HELPERS ───────────────────────────────────────────────────
+const formatCurrency = (val) =>
+  new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(val || 0);
 
-    // Deduction View State
-    const [deductionAmount, setDeductionAmount] = useState('');
-    const [selectedDeductionIds, setSelectedDeductionIds] = useState([]);
-    const [deductionPendingData, setDeductionPendingData] = useState({ amount: 0, customerIds: [] }); 
+const userBooksRef = (uid) => collection(db, `users/${uid}/books`);
+const userTxRef = (uid) => collection(db, `users/${uid}/transactions`);
+const bookDocRef = (uid, id) => doc(db, `users/${uid}/books/${id}`);
+const txDocRef = (uid, id) => doc(db, `users/${uid}/transactions/${id}`);
 
+// ════════════════════════════════════════════════════════════
+//  AUTH SCREEN  (Login / Register with Email or Phone)
+// ════════════════════════════════════════════════════════════
+const AuthScreen = () => {
+  const [mode, setMode] = useState('login');   // 'login' | 'register' | 'phone'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [confirmResult, setConfirmResult] = useState(null);
+  const recaptchaRef = useRef(null);
+  const otpInputRef = useRef(null);
 
-    // --- UTILITIES ---
-
-    // Function to determine the correct Firestore path for private user data.
-    const getCollectionPath = useCallback((uid) => {
-        return `artifacts/${appId}/users/${uid}/customers`;
-    }, []);
-
-    // Function to determine the correct Firestore path for transactions.
-    const getTransactionCollectionPath = useCallback((uid) => {
-        return `artifacts/${appId}/users/${uid}/transactions`;
-    }, []);
-
-    // Function to determine the correct Firestore path for loans.
-    const getLoanCollectionPath = useCallback((uid) => {
-        return `artifacts/${appId}/users/${uid}/loans`;
-    }, []);
-
-    // Function to handle temporary user messages
-    const displayMessage = (message, isError = false) => {
-        // Simple internal log/error display (replaces alert/confirm)
-        setError(isError ? message : null);
-        console.log(message);
-        setTimeout(() => setError(null), 5000);
+  // Cleanup reCAPTCHA on unmount
+  useEffect(() => {
+    return () => {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        delete window.recaptchaVerifier;
+      }
     };
+  }, []);
 
-    // --- FIREBASE INITIALIZATION AND AUTHENTICATION ---
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      if (mode === 'register') {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(cred.user, { displayName: name });
+        await sendEmailVerification(cred.user);
+        setInfo('Account created! Check your email to verify your address.');
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+    }
+    setLoading(false);
+  };
 
-    useEffect(() => {
-        try {
-            if (!firebaseConfig.apiKey) {
-                console.warn("Firebase config is missing API key. Data will not persist.");
-                setLoading(false);
-                setIsAuthReady(true);
-                return;
-            }
-            const app = initializeApp(firebaseConfig);
-            const firestore = getFirestore(app);
-            const authInstance = getAuth(app);
-            setDb(firestore);
-            setAuth(authInstance);
-            setLogLevel('Debug'); // Enable debug logging
+  const handleSendOTP = async () => {
+    setLoading(true); setError('');
+    try {
+      // Clean up previous verifier
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+      }
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+      });
+      const result = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
+      setConfirmResult(result);
+      setInfo('OTP sent to ' + phone);
+      // Auto-focus OTP input
+      setTimeout(() => otpInputRef.current?.focus(), 100);
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+    }
+    setLoading(false);
+  };
 
-            // Handle Authentication State
-            const unsubscribeAuth = onAuthStateChanged(authInstance, async (user) => {
-                let currentUserId = user ? user.uid : null;
-                
-                if (!user) {
-                    try {
-                        if (initialAuthToken) {
-                            const userCredential = await signInWithCustomToken(authInstance, initialAuthToken);
-                            currentUserId = userCredential.user.uid;
-                        } else {
-                            const userCredential = await signInAnonymously(authInstance);
-                            currentUserId = userCredential.user.uid;
-                        }
-                    } catch (e) {
-                        console.error("Authentication failed:", e);
-                        displayMessage("Authentication failed. Data will not save.", true);
-                        setIsAuthReady(true);
-                        return;
-                    }
-                }
-                
-                setUserId(currentUserId);
-                setIsAuthReady(true);
-                setLoading(false);
-            });
+  const handleVerifyOTP = async () => {
+    setLoading(true); setError('');
+    try {
+      await confirmResult.confirm(otp);
+    } catch (err) {
+      setError('Invalid OTP. Please try again.');
+    }
+    setLoading(false);
+  };
 
-            return () => {
-                if (unsubscribeAuth) unsubscribeAuth();
-            };
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 font-sans">
+      <div id="recaptcha-container" ref={recaptchaRef}></div>
 
-        } catch (e) {
-            console.error("Firebase initialization failed:", e);
-            displayMessage(`Initialization error: ${e.message}`, true);
-            setLoading(false);
-        }
-    }, [getCollectionPath, initialAuthToken, firebaseConfig]);
-
-    // --- REAL-TIME DATA LISTENER (Customers) ---
-
-    useEffect(() => {
-        let unsubscribeSnapshot = null;
-        if (db && userId && isAuthReady) {
-            setLoading(true);
-            const path = getCollectionPath(userId);
-            const q = collection(db, path);
-
-            // Set up the real-time listener
-            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-                const fetchedCustomers = [];
-                snapshot.forEach((doc) => {
-                    fetchedCustomers.push({ id: doc.id, ...doc.data() });
-                });
-                
-                fetchedCustomers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-                setCustomers(fetchedCustomers);
-                setLoading(false);
-            }, (err) => {
-                console.error("Error setting up customer listener:", err);
-                displayMessage(`Error fetching customers: ${err.message}`, true);
-                setLoading(false);
-            });
-        } else if (isAuthReady && !userId) {
-            setLoading(false);
-        }
-
-        return () => {
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-        };
-    }, [db, userId, isAuthReady, getCollectionPath]);
-
-    // --- REAL-TIME DATA LISTENER (Loans) ---
-
-    useEffect(() => {
-        let unsubscribeSnapshot = null;
-        if (db && userId && isAuthReady) {
-            const path = getLoanCollectionPath(userId);
-            const q = collection(db, path);
-
-            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-                const fetchedLoans = [];
-                snapshot.forEach((doc) => {
-                    // Convert Firestore timestamp to JS Date if necessary
-                    const data = doc.data();
-                    const startDate = data.startDate?.toDate ? data.startDate.toDate() : new Date();
-                    fetchedLoans.push({ id: doc.id, ...data, startDate });
-                });
-                
-                // Sort by creation date/start date (descending)
-                fetchedLoans.sort((a, b) => b.startDate - a.startDate);
-
-                setLoans(fetchedLoans);
-            }, (err) => {
-                console.error("Error setting up loan listener:", err);
-                displayMessage(`Error fetching loans: ${err.message}`, true);
-            });
-        }
-
-        return () => {
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-        };
-    }, [db, userId, isAuthReady, getLoanCollectionPath]);
-
-
-    // --- REAL-TIME DATA LISTENER (Transactions) ---
-
-    useEffect(() => {
-        let unsubscribeSnapshot = null;
-        if (db && userId && isAuthReady && selectedCustomer) {
-            const path = getTransactionCollectionPath(userId);
-            
-            // Query transactions specific to the selected customer
-            const q = query(
-                collection(db, path),
-                where('customerId', '==', selectedCustomer.id)
-            );
-
-            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-                const fetchedTransactions = [];
-                snapshot.forEach((doc) => {
-                    fetchedTransactions.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Sort by date/timestamp manually (descending)
-                fetchedTransactions.sort((a, b) => (b.date?.toDate() || b.createdAt) - (a.date?.toDate() || a.createdAt));
-
-                setTransactions(fetchedTransactions);
-            }, (err) => {
-                console.error("Error setting up transaction listener:", err);
-                displayMessage(`Error fetching transactions: ${err.message}`, true);
-            });
-        } else {
-            setTransactions([]); // Clear transactions if no customer selected
-        }
-
-        return () => {
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-        };
-    }, [db, userId, isAuthReady, selectedCustomer, getTransactionCollectionPath]);
-
-    // --- DATA HANDLING: CUSTOMERS ---
-
-    const handleAddCustomer = async (newCustomer) => {
-        if (!userId) {
-            displayMessage("System not authenticated. Cannot add customer.", true);
-            return;
-        }
-
-        try {
-            await addDoc(collection(db, getCollectionPath(userId)), {
-                ...newCustomer, // Now only contains name, accountNo
-                balance: 0.00, // Initialize savings balance to 0.00
-                createdAt: new Date(),
-            });
-            displayMessage(`Customer added: ${newCustomer.name}`);
-            setIsCustomerModalOpen(false); // Auto-cut/close on success
-        } catch (e) {
-            console.error("Error adding document: ", e);
-            displayMessage(`Error adding customer: ${e.message}`, true);
-        }
-    };
-
-    // --- DATA HANDLING: TRANSACTIONS ---
-
-    const handleAddTransaction = async (customerId, transactionData) => {
-        if (!userId || !db) {
-            displayMessage("System not authenticated. Cannot record transaction.", true);
-            return;
-        }
-
-        // transactionData now includes the 'date' field from the drawer
-        const { amount, type, description, date } = transactionData; 
-
-        // 1. Record the Transaction
-        try {
-            await addDoc(collection(db, getTransactionCollectionPath(userId)), {
-                customerId,
-                amount,
-                type,
-                description,
-                date: date, // Use the date/time from the drawer
-            });
-
-            // 2. Update Customer Savings Balance
-            const customerRef = doc(db, getCollectionPath(userId), customerId);
-            const customer = customers.find(c => c.id === customerId);
-            
-            if (customer) {
-                let newBalance = customer.balance || 0;
-                if (type === 'cash_in') {
-                    newBalance += amount;
-                } else if (type === 'cash_out') {
-                    newBalance -= amount;
-                }
-
-                await updateDoc(customerRef, {
-                    balance: newBalance,
-                });
-
-                displayMessage(`Transaction recorded and balance updated for Customer ID: ${customerId}.`);
-                setIsTransactionDrawerOpen(false); // Auto-cut/close drawer on success
-            } else {
-                console.error("Customer not found during transaction update.");
-                displayMessage("Error: Customer not found locally. Transaction recorded but balance update failed.", true);
-            }
-        } catch (e) {
-            console.error("Error processing transaction: ", e);
-            displayMessage(`Error processing transaction: ${e.message}`, true);
-        }
-    };
-
-    // --- DATA HANDLING: LOANS ---
-    
-    const handleAddLoan = async (loanData) => {
-        if (!userId || !db) {
-            displayMessage("System not authenticated. Cannot record loan.", true);
-            return;
-        }
-
-        const { customerId, principal, termMonths, interestRate, startDate } = loanData;
-
-        try {
-            const principalAmount = parseFloat(principal);
-            const outstandingBalance = principalAmount; // Initially, outstanding balance equals principal
-
-            // Simple Monthly Payment Calculation (Principal only, no amortization)
-            const monthlyPaymentEstimate = (principalAmount / parseInt(termMonths, 10)) + 
-                                            ((principalAmount * parseFloat(interestRate) / 100) / parseInt(termMonths, 10)); // Simple Interest approximation
-            // Note: This is a basic approximation for display. Real amortization is more complex.
-
-            // 1. Record the Loan document
-            await addDoc(collection(db, getLoanCollectionPath(userId)), {
-                customerId,
-                principal: principalAmount,
-                outstandingBalance: outstandingBalance,
-                termMonths: parseInt(termMonths, 10),
-                interestRate: parseFloat(interestRate),
-                startDate: startDate,
-                monthlyPaymentEstimate: monthlyPaymentEstimate.toFixed(2),
-                status: 'Active', // Default status
-                createdAt: new Date(),
-            });
-
-            displayMessage(`Loan of GHS${principalAmount.toFixed(2)} recorded successfully.`);
-            setIsLoanModalOpen(false);
-        } catch (e) {
-            console.error("Error adding loan: ", e);
-            displayMessage(`Error recording loan: ${e.message}`, true);
-        }
-    };
-
-    // NEW: Function to handle loan repayment
-    const handleRepayLoan = async (loanId, repaymentAmount, description) => {
-        if (!userId || !db) {
-            displayMessage("System not authenticated. Cannot record repayment.", true);
-            return;
-        }
-
-        try {
-            const loanRef = doc(db, getLoanCollectionPath(userId), loanId);
-            const loan = loans.find(l => l.id === loanId);
-            
-            if (!loan) {
-                displayMessage("Error: Loan not found.", true);
-                return;
-            }
-
-            // Calculate new outstanding balance, ensuring it doesn't go below zero
-            const newOutstandingBalance = Math.max(0, (loan.outstandingBalance || 0) - repaymentAmount);
-            // Determine status
-            const status = newOutstandingBalance <= 0.01 ? 'Completed' : 'Active';
-
-            // 1. Update Loan Outstanding Balance and Status
-            await updateDoc(loanRef, {
-                outstandingBalance: newOutstandingBalance,
-                status: status,
-                lastPaymentDate: new Date(), // Record the last payment date
-            });
-
-            // 2. Record the Repayment as a Cash In transaction (for customer record/audit)
-            await addDoc(collection(db, getTransactionCollectionPath(userId)), {
-                customerId: loan.customerId,
-                amount: repaymentAmount,
-                type: 'cash_in', // Repayment is an inflow of funds to the institution
-                description: description || `Loan Repayment - Loan ID: ${loanId.substring(0, 8)}`,
-                date: new Date(),
-            });
-
-            displayMessage(`Loan repayment of GHS${repaymentAmount.toFixed(2)} recorded successfully. Outstanding balance: GHS${newOutstandingBalance.toFixed(2)}.`);
-            // Auto-cut/close on success
-            setIsRepaymentModalOpen(false); 
-            setSelectedLoanForRepayment(null);
-        } catch (e) {
-            console.error("Error processing loan repayment: ", e);
-            displayMessage(`Error processing loan repayment: ${e.message}`, true);
-        }
-    };
-
-
-    // --- DATA HANDLING: DEDUCTIONS ---
-
-    const toggleCustomerSelection = (customerId) => {
-        setSelectedDeductionIds(prev =>
-            prev.includes(customerId)
-                ? prev.filter(id => id !== customerId)
-                : [...prev, customerId]
-        );
-    };
-
-    const confirmDeduction = async () => {
-        const { amount, customerIds } = deductionPendingData;
-        
-        setIsDeductionConfirmationOpen(false); // Close confirmation modal immediately
-
-        let successfulUpdates = 0;
-        let failedUpdates = 0;
-
-        for (const customerId of customerIds) {
-            try {
-                // 1. Update Customer Balance
-                const customerRef = doc(db, getCollectionPath(userId), customerId);
-                const customer = customers.find(c => c.id === customerId);
-                
-                if (customer) {
-                    const newBalance = (customer.balance || 0) - amount;
-
-                    await updateDoc(customerRef, {
-                        balance: newBalance,
-                    });
-
-                    // 2. Record the Deduction (Cash Out Transaction)
-                    await addDoc(collection(db, getTransactionCollectionPath(userId)), {
-                        customerId,
-                        amount: amount,
-                        type: 'cash_out',
-                        description: `Monthly Deduction - GHS${amount.toFixed(2)}`,
-                        date: new Date(),
-                    });
-                    successfulUpdates++;
-                }
-            } catch (e) {
-                console.error(`Error processing deduction for ${customerId}:`, e);
-                failedUpdates++;
-            }
-        }
-        
-        // Auto-cut: Clear form states after processing, whether successful or not
-        setDeductionAmount('');
-        setSelectedDeductionIds([]);
-        setDeductionPendingData({ amount: 0, customerIds: [] });
-
-        displayMessage(`Deduction process complete. ${successfulUpdates} customer(s) updated successfully. ${failedUpdates} failed.`);
-    };
-
-
-    const handleProcessDeduction = () => {
-        if (!userId || !db) {
-            displayMessage("System not authenticated. Cannot process deduction.", true);
-            return;
-        }
-        const amount = parseFloat(deductionAmount);
-        if (isNaN(amount) || amount <= 0 || selectedDeductionIds.length === 0) {
-            displayMessage("Please enter a valid amount (GHS) and select at least one customer.", true);
-            return;
-        }
-        
-        setDeductionPendingData({ amount, customerIds: selectedDeductionIds });
-        setIsDeductionConfirmationOpen(true);
-    };
-
-    // --- CALCULATED VALUES FOR DASHBOARD ---
-    
-    const calculateDashboardTotals = () => {
-        const customerCount = customers.length;
-        const totalSavingsBalance = customers.reduce((sum, customer) => sum + (customer.balance || 0), 0);
-        const totalLoanPrincipal = loans.reduce((sum, loan) => sum + (loan.principal || 0), 0);
-        const totalOutstandingLoan = loans.reduce((sum, loan) => sum + (loan.outstandingBalance || 0), 0);
-        
-        return {
-            totalSavingsBalance: totalSavingsBalance.toFixed(2), 
-            totalLoanPrincipal: totalLoanPrincipal.toFixed(2),
-            totalOutstandingLoan: totalOutstandingLoan.toFixed(2),
-            customerCount: customerCount
-        };
-    };
-
-    const dashboardTotals = calculateDashboardTotals();
-
-    // --- NAVIGATION & CUSTOMER SELECTION ---
-    const handleSelectCustomer = (customer) => {
-        setSelectedCustomer(customer);
-        setCurrentView('Customer Detail');
-    };
-
-    const handleBackToCashBook = () => {
-        setCurrentView('Cash Book');
-        setSelectedCustomer(null);
-        setIsTransactionDrawerOpen(false); // Ensure drawer is closed
-    };
-
-    // --- COMPONENTS ---
-
-    // 1. Navigation Component
-    const NavTab = ({ name, icon: Icon }) => (
-        <button
-            className={`flex items-center space-x-2 py-2 px-4 rounded-lg transition duration-200 
-                ${currentView === name 
-                    ? 'bg-[#0e1625] text-green-400 font-semibold' 
-                    : 'text-gray-400 hover:text-white hover:bg-[#0e1625]'}`}
-            onClick={() => {
-                setCurrentView(name);
-                setSelectedCustomer(null); // Clear selection when navigating away from detail view
-                setIsTransactionDrawerOpen(false); // Close drawer
-            }}
-        >
-            <Icon size={18} />
-            <span>{name}</span>
-        </button>
-    );
-
-    const navItems = [
-        { name: 'Dashboard', icon: Calendar },
-        { name: 'Cash Book', icon: DollarSign },
-        { name: 'Monthly Deduction', icon: Users },
-        { name: 'Loan Management', icon: PiggyBank }, 
-        { name: 'App Settings', icon: Settings },
-    ];
-
-    // 2. Card Component
-    const StatCard = ({ title, value, colorClass = 'text-green-400' }) => (
-        <div className="bg-[#1a2333] p-6 rounded-xl shadow-lg flex-1 min-w-40">
-            <h3 className="text-gray-400 text-md font-medium mb-1">{title}</h3>
-            <p className={`text-3xl sm:text-4xl font-extrabold ${colorClass}`}>
-                {/* Use GHS for currency titles, otherwise use raw value */}
-                {title.includes('Count') || title.includes('Rate') ? value : `GHS${parseFloat(value).toFixed(2)}`}
-            </p>
+      <div className="bg-slate-800 rounded-3xl p-8 w-full max-w-md border border-slate-700 shadow-2xl">
+        {/* Logo */}
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <Building2 size={28} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">SSCU Terminal</h1>
+          <p className="text-slate-400 text-xs font-bold">Secure Credit Union System</p>
         </div>
-    );
 
-    // 3. Modals & Drawer
+        {/* Tab Switcher */}
+        <div className="flex gap-2 mb-6">
+          {[['login', 'Login'], ['register', 'Register'], ['phone', 'Phone OTP']].map(([m, label]) => (
+            <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); }}
+              className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors ${
+                mode === m ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
 
-    const ModalBase = ({ title, children, onClose }) => (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-[#1a2333] p-8 rounded-xl w-full max-w-lg shadow-2xl relative">
-                <h3 className="text-2xl font-semibold text-white mb-6">{title}</h3>
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-                    <Plus size={24} className="transform rotate-45" />
+        {/* Error / Info banners */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-4 flex gap-2 text-red-300 text-sm">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" /> {error}
+          </div>
+        )}
+        {info && (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 mb-4 flex gap-2 text-green-300 text-sm">
+            <CheckCircle size={16} className="shrink-0 mt-0.5" /> {info}
+          </div>
+        )}
+
+        {/* EMAIL / REGISTER FORM */}
+        {(mode === 'login' || mode === 'register') && (
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            {mode === 'register' && (
+              <AuthInput icon={<UserPlus size={16} />} placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required />
+            )}
+            <AuthInput icon={<Mail size={16} />} type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+            <div className="relative">
+              <AuthInput icon={<ShieldCheck size={16} />} type={showPw ? 'text' : 'password'} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50">
+              {loading ? <Loader2 size={18} className="animate-spin" /> : (mode === 'login' ? 'Sign In' : 'Create Account')}
+            </button>
+          </form>
+        )}
+
+        {/* PHONE OTP FORM */}
+        {mode === 'phone' && (
+          <div className="space-y-4">
+            <AuthInput icon={<PhoneCall size={16} />} type="tel" placeholder="+233 XX XXX XXXX" value={phone} onChange={e => setPhone(e.target.value)} />
+            <button onClick={handleSendOTP} disabled={loading || !phone} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50">
+              {loading ? <Loader2 size={18} className="animate-spin" /> : 'Send OTP'}
+            </button>
+            {confirmResult && (
+              <>
+                <AuthInput icon={<ShieldCheck size={16} />} placeholder="Enter 6-digit OTP" value={otp} onChange={e => setOtp(e.target.value)} maxLength={6} inputRef={otpInputRef} />
+                <button onClick={handleVerifyOTP} disabled={loading || otp.length < 6} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50">
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : 'Verify OTP'}
                 </button>
-                {children}
-            </div>
-        </div>
-    );
-    
-    // UPDATED: Removed phone and business fields. Auto-cut logic confirmed in handleAddCustomer.
-    const NewCustomerModal = ({ onSubmit, onClose }) => {
-        const [name, setName] = useState('');
-        const [accountNo, setAccountNo] = useState('');
+              </>
+            )}
+          </div>
+        )}
 
-        const handleSubmit = (e) => {
-            e.preventDefault();
-            if (name) {
-                // Only sending name and accountNo
-                onSubmit({ name, accountNo });
-            } else {
-                displayMessage('Customer Full Name is required.', true);
-            }
-        };
+        <p className="text-center text-slate-500 text-[10px] font-bold mt-6">Secured by Firebase Authentication</p>
+      </div>
+    </div>
+  );
+};
 
-        return (
-            <ModalBase title="Add New Customer/Account" onClose={onClose}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <input
-                        type="text"
-                        placeholder="Customer Full Name (Required)"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                        required
-                    />
-                    <input
-                        type="text"
-                        placeholder="Account No. (Optional)"
-                        value={accountNo}
-                        onChange={(e) => setAccountNo(e.target.value)}
-                        className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                    />
-                    <p className="text-sm text-gray-500 pt-2">
-                        A new customer will be created with an initial **GHS0.00 Balance**.
-                    </p>
-                    <div className="flex justify-end space-x-3 pt-4">
-                        <button 
-                            type="button" 
-                            onClick={onClose}
-                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            type="submit" 
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
-                        >
-                            Create Customer
-                        </button>
-                    </div>
-                </form>
-            </ModalBase>
-        );
-    };
+// Enhanced AuthInput with ref support
+const AuthInput = React.forwardRef(({ icon, ...props }, ref) => (
+  <div className="relative">
+    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>
+    <input ref={ref} {...props} className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
+  </div>
+));
 
-    // NEW COMPONENT: Transaction Drawer (replaces NewTransactionModal)
-    const TransactionDrawer = ({ customer, onSubmit, onClose }) => {
-        const now = new Date();
-        
-        // Form states
-        const [amount, setAmount] = useState('');
-        const [type, setType] = useState('cash_in');
-        const [description, setDescription] = useState('');
-        
-        // Editable date/time states
-        const [transactionDate, setTransactionDate] = useState(now.toISOString().substring(0, 10)); // YYYY-MM-DD
-        const [transactionTime, setTransactionTime] = useState(now.toTimeString().substring(0, 5)); // HH:MM
-    
-        const handleSubmit = (e) => {
-            e.preventDefault();
-            const numericAmount = parseFloat(amount);
-            if (isNaN(numericAmount) || numericAmount <= 0) {
-                displayMessage('Please enter a valid positive amount (GHS).', true);
-                return;
-            }
+// ════════════════════════════════════════════════════════════
+//  MAIN APP  (shown after login)
+// ════════════════════════════════════════════════════════════
+const MainApp = ({ user }) => {
+  const uid = user.uid;
 
-            // Combine date and time into a single Date object for Firestore
-            const combinedDateTimeString = `${transactionDate}T${transactionTime}:00`;
-            const transactionDateTime = new Date(combinedDateTimeString);
+  // ── REALTIME DATA from Firestore ───────────────────────────
+  const [books, setBooks] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
 
-            if (isNaN(transactionDateTime.getTime())) {
-                displayMessage('Invalid date or time selected.', true);
-                return;
-            }
-    
-            onSubmit(customer.id, {
-                amount: numericAmount,
-                type: type,
-                description: description,
-                date: transactionDateTime, // Use the provided date/time
-            });
-        };
-    
-        return (
-            <div className="fixed inset-0 z-50 overflow-hidden">
-                <div 
-                    className="absolute inset-0 bg-black bg-opacity-75 transition-opacity duration-300"
-                    onClick={onClose}
-                ></div>
-                <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-[#1a2333] shadow-2xl p-6 transform translate-x-0 transition-transform duration-300">
-                    <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
-                        <h3 className="text-xl font-semibold text-white">New Transaction</h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-white">
-                            <X size={24} />
-                        </button>
-                    </div>
-                    
-                    <p className="text-gray-300 mb-6">
-                        Account: <span className="font-bold text-green-400">{customer.name}</span>
-                    </p>
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-gray-400 mb-1">Transaction Type</label>
-                            <select
-                                value={type}
-                                onChange={(e) => setType(e.target.value)}
-                                className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                            >
-                                <option value="cash_in">Cash In (Deposit)</option>
-                                <option value="cash_out">Cash Out (Withdrawal/Deduction)</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-400 mb-1">Amount (GHS)</label>
-                            <input
-                                type="number"
-                                placeholder="Amount (GHS) (Required)"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                                step="0.01"
-                                min="0.01"
-                                required
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-gray-400 mb-1">Date</label>
-                                <input
-                                    type="date"
-                                    value={transactionDate}
-                                    onChange={(e) => setTransactionDate(e.target.value)}
-                                    className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-400 mb-1">Time</label>
-                                <input
-                                    type="time"
-                                    value={transactionTime}
-                                    onChange={(e) => setTransactionTime(e.target.value)}
-                                    className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <textarea
-                            placeholder="Description (e.g., Monthly contribution, Loan repayment)"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400 h-24"
-                        />
-                        
-                        <div className="flex justify-end space-x-3 pt-4">
-                            <button 
-                                type="button" 
-                                onClick={onClose} 
-                                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                type="submit" 
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
-                            >
-                                Record Entry
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        );
-    };
-
-    const DeductionConfirmationModal = ({ amount, customerIds, onConfirm, onClose }) => {
-        const customerNames = customers
-            .filter(c => customerIds.includes(c.id))
-            .map(c => c.name);
-
-        return (
-            <ModalBase title="Confirm Monthly Deduction" onClose={onClose}>
-                <div className="bg-red-800/20 text-red-300 p-4 rounded-lg flex items-start space-x-3 mb-6 border border-red-700">
-                    <AlertTriangle size={20} className="mt-1 flex-shrink-0" />
-                    <p className="text-sm">
-                        This action is **IRREVERSIBLE**. It will record a **Cash Out** transaction and adjust the balance for all selected accounts.
-                    </p>
-                </div>
-
-                <div className="space-y-4 text-gray-300">
-                    <p>You are about to deduct the following amount:</p>
-                    <h4 className="text-3xl font-extrabold text-white">GHS {amount.toFixed(2)}</h4>
-                    <p>From **{customerIds.length}** customer(s):</p>
-                    <div className="h-24 overflow-y-auto bg-[#0e1625] p-3 rounded-lg border border-gray-700">
-                        <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
-                            {customerNames.map((name, index) => (
-                                <li key={index}>{name}</li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-6">
-                    <button 
-                        type="button" 
-                        onClick={onClose}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        type="button" 
-                        onClick={onConfirm} 
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
-                    >
-                        Confirm Deduction
-                    </button>
-                </div>
-            </ModalBase>
-        );
-    };
-
-    const NewLoanModal = ({ customers, onSubmit, onClose }) => {
-        const [customerId, setCustomerId] = useState('');
-        const [principal, setPrincipal] = useState('');
-        const [termMonths, setTermMonths] = useState('12');
-        const [interestRate, setInterestRate] = useState('15');
-        const [startDate, setStartDate] = useState(new Date().toISOString().substring(0, 10)); // YYYY-MM-DD
-
-        useEffect(() => {
-            // Set first customer as default selection
-            if (customers.length > 0 && !customerId) {
-                setCustomerId(customers[0].id);
-            }
-        }, [customers, customerId]);
-
-        const handleSubmit = (e) => {
-            e.preventDefault();
-            const principalNum = parseFloat(principal);
-            const termNum = parseInt(termMonths, 10);
-            
-            if (!customerId || principalNum <= 0 || termNum <= 0 || isNaN(principalNum) || isNaN(termNum)) {
-                displayMessage('Please select a customer and enter valid principal and term.', true);
-                return;
-            }
-
-            onSubmit({
-                customerId,
-                principal: principalNum,
-                termMonths: termNum,
-                interestRate: parseFloat(interestRate),
-                startDate: new Date(startDate),
-            });
-        };
-
-        return (
-            <ModalBase title="Record New Loan Disbursement" onClose={onClose}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-gray-400 mb-1">Customer</label>
-                        <select
-                            value={customerId}
-                            onChange={(e) => setCustomerId(e.target.value)}
-                            className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                            required
-                            disabled={customers.length === 0}
-                        >
-                            {customers.length === 0 ? (
-                                <option value="">No Customers Available</option>
-                            ) : (
-                                customers.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name} (GHS{c.balance?.toFixed(2)})</option>
-                                ))
-                            )}
-                        </select>
-                    </div>
-                    
-                    <input
-                        type="number"
-                        placeholder="Principal Amount (GHS)"
-                        value={principal}
-                        onChange={(e) => setPrincipal(e.target.value)}
-                        className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                        step="0.01"
-                        min="0.01"
-                        required
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-gray-400 mb-1">Term (Months)</label>
-                            <input
-                                type="number"
-                                placeholder="Term (Months)"
-                                value={termMonths}
-                                onChange={(e) => setTermMonths(e.target.value)}
-                                className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-gray-400 mb-1">Interest Rate (%)</label>
-                            <input
-                                type="number"
-                                placeholder="Interest Rate (%)"
-                                value={interestRate}
-                                onChange={(e) => setInterestRate(e.target.value)}
-                                className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                                step="0.1"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-gray-400 mb-1">Disbursement Date</label>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                            required
-                        />
-                    </div>
-                    
-                    <p className="text-sm text-gray-500 pt-2">
-                        Recording this will establish a new loan liability for the customer.
-                    </p>
-                    <div className="flex justify-end space-x-3 pt-4">
-                        <button 
-                            type="button" 
-                            onClick={onClose}
-                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            type="submit" 
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
-                        >
-                            Disburse Loan
-                        </button>
-                    </div>
-                </form>
-            </ModalBase>
-        );
-    };
-
-    // Loan Repayment Modal
-    const LoanRepaymentModal = ({ loan, onSubmit, onClose }) => {
-        const [amount, setAmount] = useState(loan.outstandingBalance.toFixed(2));
-        const [description, setDescription] = useState('');
-        
-        const maxRepayable = loan.outstandingBalance;
-
-        const handleSubmit = (e) => {
-            e.preventDefault();
-            const numericAmount = parseFloat(amount);
-            if (isNaN(numericAmount) || numericAmount <= 0) {
-                displayMessage('Please enter a valid positive amount (GHS).', true);
-                return;
-            }
-            if (numericAmount > maxRepayable) {
-                displayMessage(`Repayment amount cannot exceed outstanding balance of GHS${maxRepayable.toFixed(2)}.`, true);
-                return;
-            }
-    
-            onSubmit(loan.id, numericAmount, description);
-        };
-    
-        return (
-            <ModalBase title={`Record Repayment for ${loan.customerName}`} onClose={onClose}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <p className="text-gray-400">
-                        Outstanding Balance: <span className="font-bold text-lg text-red-400">GHS{loan.outstandingBalance.toFixed(2)}</span>
-                    </p>
-                    
-                    <input
-                        type="number"
-                        placeholder={`Amount to repay (Max: ${maxRepayable.toFixed(2)})`}
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                        step="0.01"
-                        min="0.01"
-                        max={maxRepayable}
-                        required
-                    />
-                    <textarea
-                        placeholder="Repayment details (e.g., Monthly installment, Final settlement)"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="w-full p-3 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400 h-20"
-                    />
-                    
-                    <div className="flex justify-end space-x-3 pt-4">
-                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
-                            Cancel
-                        </button>
-                        <button type="submit" className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-semibold">
-                            Record Repayment
-                        </button>
-                    </div>
-                </form>
-            </ModalBase>
-        );
-    };
-
-
-    // --- VIEW RENDERERS ---
-    
-    // 1. Dashboard View
-    const DashboardView = () => (
-        <div>
-            <h2 className="text-3xl font-bold text-white mb-6">Dashboard</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"> 
-                <StatCard 
-                    title="Total Savings Balance" 
-                    value={dashboardTotals.totalSavingsBalance} 
-                    colorClass={dashboardTotals.totalSavingsBalance >= 0 ? 'text-green-400' : 'text-red-400'}
-                />
-                 <StatCard 
-                    title="Total Loan Principal" 
-                    value={dashboardTotals.totalLoanPrincipal} 
-                    colorClass="text-yellow-500"
-                />
-                <StatCard 
-                    title="Outstanding Loan Debt" 
-                    value={dashboardTotals.totalOutstandingLoan} 
-                    colorClass="text-red-400"
-                />
-                <StatCard 
-                    title="Customer Count" 
-                    value={dashboardTotals.customerCount} 
-                    colorClass="text-indigo-400"
-                />
-            </div>
-        </div>
+  useEffect(() => {
+    // Books listener with error handling
+    const unsubBooks = onSnapshot(
+      userBooksRef(uid),
+      (snap) => {
+        setBooks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoadingData(false);
+      },
+      (err) => {
+        console.error("Books listener error:", err);
+        setLoadingData(false);
+      }
     );
 
-    // 2. Cash Book View 
-    const CashBookView = () => {
-        // UPDATED: Search only by name and accountNo
-        const filteredCustomers = customers.filter(customer => 
-            customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            customer.accountNo?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+    // Transactions listener
+    const unsubTx = onSnapshot(
+      userTxRef(uid),
+      (snap) => {
+        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (err) => console.error("Transactions listener error:", err)
+    );
 
-        return (
-            <div>
-                <h2 className="text-3xl font-bold text-white mb-6">Cash Book (Customer Accounts)</h2>
-                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-                    <div className="relative w-full sm:w-80 flex-1">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
-                        <input
-                            type="text"
-                            // UPDATED: Placeholder
-                            placeholder="Search by name or account number..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full p-3 pl-10 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                        />
+    return () => { unsubBooks(); unsubTx(); };
+  }, [uid]);
+
+  // ── UI STATE ───────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [viewingBookId, setViewingBookId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [bookModal, setBookModal] = useState(null);
+  const [txModal, setTxModal] = useState(null);
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [selectedBookIds, setSelectedBookIds] = useState([]);
+  const [deductionAmount, setDeductionAmount] = useState('');
+  const [deductionDesc, setDeductionDesc] = useState('');
+  const [notifications, setNotifications] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [batchError, setBatchError] = useState('');
+
+  // ── COMPUTED ───────────────────────────────────────────────
+  const globalStats = useMemo(() => {
+    const totalIn = transactions.filter(t => t.type === 'IN').reduce((a, t) => a + t.amount, 0);
+    const totalOut = transactions.filter(t => t.type === 'OUT').reduce((a, t) => a + t.amount, 0);
+    return { totalIn, totalOut, totalBalance: totalIn - totalOut };
+  }, [transactions]);
+
+  const filteredBooks = useMemo(() =>
+    books.filter(b =>
+      b.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.accountNumber?.includes(searchQuery)
+    ), [books, searchQuery]);
+
+  const activeBook = useMemo(() => books.find(b => b.id === viewingBookId), [books, viewingBookId]);
+  const activeBookTxs = useMemo(() => transactions.filter(t => t.bookId === viewingBookId), [transactions, viewingBookId]);
+  const activeBookBalance = useMemo(() =>
+    activeBookTxs.reduce((sum, t) => sum + (t.type === 'IN' ? t.amount : -t.amount), 0),
+    [activeBookTxs]);
+
+  // ── FIRESTORE CRUD (with batch delete for books) ───────────
+  const saveBook = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const fd = new FormData(e.target);
+    const data = { name: fd.get('name'), accountNumber: fd.get('accountNumber') };
+
+    try {
+      if (bookModal.mode === 'add') {
+        await addDoc(userBooksRef(uid), { ...data, createdAt: serverTimestamp() });
+      } else {
+        await updateDoc(bookDocRef(uid, bookModal.book.id), data);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save member. Check console.");
+    } finally {
+      setSaving(false);
+      setBookModal(null);
+    }
+  };
+
+  const deleteBook = async (bookId) => {
+    if (!window.confirm("Delete this member and ALL their transactions? This cannot be undone.")) return;
+    setSaving(true);
+    try {
+      const batch = writeBatch(db);
+      // Delete all transactions for this book
+      const txQuery = query(userTxRef(uid), where("bookId", "==", bookId));
+      const txSnap = await getDocs(txQuery);
+      txSnap.forEach(docSnap => batch.delete(docSnap.ref));
+      // Delete the book itself
+      batch.delete(bookDocRef(uid, bookId));
+      await batch.commit();
+      setViewingBookId(null);
+    } catch (err) {
+      console.error("Delete book error:", err);
+      alert("Failed to delete member. Check permissions or try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveTransaction = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const fd = new FormData(e.target);
+    const data = {
+      amount: parseFloat(fd.get('amount')),
+      desc: fd.get('desc'),
+      type: txModal.type,
+      bookId: txModal.bookId,
+      date: serverTimestamp(),
+    };
+
+    try {
+      if (txModal.mode === 'add') {
+        await addDoc(userTxRef(uid), data);
+      } else {
+        await updateDoc(txDocRef(uid, txModal.tx.id), data);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save transaction.");
+    } finally {
+      setSaving(false);
+      setTxModal(null);
+      setSelectedTx(null);
+    }
+  };
+
+  const deleteTransaction = async (id) => {
+    if (!window.confirm("Delete this transaction?")) return;
+    try {
+      await deleteDoc(txDocRef(uid, id));
+      setSelectedTx(null);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete transaction.");
+    }
+  };
+
+  const applyBatchDeduction = async () => {
+    if (!deductionAmount || selectedBookIds.length === 0) return;
+    setSaving(true);
+    setBatchError('');
+    const amt = parseFloat(deductionAmount);
+    try {
+      await Promise.all(selectedBookIds.map(id =>
+        addDoc(userTxRef(uid), {
+          bookId: id, type: 'OUT', amount: amt,
+          desc: deductionDesc.trim() || 'Monthly Membership Deduction',
+          date: serverTimestamp(),
+        })
+      ));
+      setSelectedBookIds([]);
+      setDeductionAmount('');
+      setDeductionDesc('');
+      setActiveTab('dashboard');
+    } catch (err) {
+      console.error("Batch deduction error:", err);
+      setBatchError("Batch failed. Check console or network.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const exportData = () => {
+    const exportObj = {
+      books,
+      transactions,
+      exportedAt: new Date().toISOString(),
+    };
+    const dataStr = JSON.stringify(exportObj, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sscu_export_${uid}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── THEME (Tailwind classes) ──────────────────────────────
+  const D = isDarkMode;
+  const themeBg = D ? 'bg-slate-950' : 'bg-slate-50';
+  const themeCard = D ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900';
+  const themeTextMuted = D ? 'text-slate-400' : 'text-slate-500';
+  const themeHeader = D ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200';
+  const themeInput = D ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-100 text-slate-900';
+
+  const NavItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'cashbooks', label: 'Cashbooks', icon: BookOpen },
+    { id: 'deductions', label: 'Deductions', icon: PieChart },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
+
+  if (loadingData) return (
+    <div className={`min-h-screen ${themeBg} flex items-center justify-center`}>
+      <Loader2 className="text-blue-500 animate-spin" size={40} />
+    </div>
+  );
+
+  return (
+    <div className={`flex flex-col h-screen ${themeBg} font-sans overflow-hidden transition-colors duration-300`}>
+
+      {/* HEADER */}
+      <header className={`${themeHeader} border-b px-6 py-4 flex items-center justify-between sticky top-0 z-30`}>
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md"><Building2 size={20} /></div>
+          <h1 className="font-black text-lg lg:text-xl truncate tracking-tight uppercase">
+            {viewingBookId ? 'Member Detail' : NavItems.find(n => n.id === activeTab)?.label}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setIsDarkMode(!D)} className={`p-2 rounded-xl ${D ? 'bg-slate-800 text-yellow-400' : 'bg-slate-100 text-slate-600'}`}>
+            {D ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${D ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-600'}`}>
+            {user.displayName || user.email?.split('@')[0] || 'Member'}
+          </div>
+          <div className="hidden sm:flex items-center gap-2 text-green-600 font-bold text-[10px] uppercase tracking-widest bg-green-500/10 px-3 py-1 rounded-full">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> LIVE
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT */}
+      <main className="flex-1 overflow-y-auto p-4 lg:p-8 pb-32">
+        <div className="max-w-6xl mx-auto">
+
+          {/* DASHBOARD */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
+                <div className="absolute top-0 right-0 p-8 opacity-5"><BadgeDollarSign size={140} /></div>
+                <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+                  <div className="space-y-1">
+                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Current Balance</p>
+                    <h2 className="text-4xl sm:text-5xl font-black tracking-tighter truncate">{formatCurrency(globalStats.totalBalance)}</h2>
+                  </div>
+                  <div className="h-full border-l border-slate-800 hidden md:block" />
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-green-500/20 p-2 rounded-xl text-green-400"><ArrowUpRight size={20} /></div>
+                      <div><p className="text-slate-400 text-[10px] font-black uppercase">Gross Deposits</p><p className="text-lg font-black">{formatCurrency(globalStats.totalIn)}</p></div>
                     </div>
-                    <button 
-                        className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow-lg"
-                        onClick={() => setIsCustomerModalOpen(true)}
-                    >
-                        <Plus size={20} />
-                        <span>Add New Customer</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                      <div className="bg-red-500/20 p-2 rounded-xl text-red-400"><ArrowDownLeft size={20} /></div>
+                      <div><p className="text-slate-400 text-[10px] font-black uppercase">Gross Withdrawals</p><p className="text-lg font-black">{formatCurrency(globalStats.totalOut)}</p></div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onClick={() => setActiveTab('cashbooks')} className={`${themeCard} p-8 rounded-[2rem] border-2 flex items-center justify-between hover:scale-[1.01] transition-all shadow-sm group`}>
+                  <div className="flex items-center gap-6">
+                    <div className="p-4 rounded-2xl bg-blue-600 text-white"><BookOpen size={28} /></div>
+                    <div className="text-left">
+                      <h4 className="font-black text-xl">Member Directory</h4>
+                      <p className={`${themeTextMuted} text-sm font-bold tracking-wide uppercase`}>{books.length} Active Accounts</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="text-slate-300 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button onClick={() => setActiveTab('deductions')} className={`${themeCard} p-8 rounded-[2rem] border-2 flex items-center justify-between hover:scale-[1.01] transition-all shadow-sm group`}>
+                  <div className="flex items-center gap-6">
+                    <div className={`p-4 rounded-2xl ${D ? 'bg-slate-700' : 'bg-slate-900'} text-white`}><PieChart size={28} /></div>
+                    <div className="text-left">
+                      <h4 className="font-black text-xl">Batch Deductions</h4>
+                      <p className={`${themeTextMuted} text-sm font-bold tracking-wide uppercase`}>Process Monthly Charges</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="text-slate-300 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          )}
 
-                <div className="bg-[#1a2333] rounded-xl overflow-x-auto shadow-lg">
-                    <table className="min-w-full table-auto">
-                        <thead>
-                            <tr className="bg-[#0e1625] text-left text-gray-400 uppercase text-sm">
-                                <th className="w-1/3 p-4 font-semibold">Name</th>
-                                {/* REMOVED: Phone and Business columns */}
-                                <th className="w-1/3 p-4 font-semibold">Account No.</th>
-                                <th className="w-1/3 p-4 font-semibold text-right">Balance (GHS)</th>
-                            </tr>
+          {/* CASHBOOKS */}
+          {activeTab === 'cashbooks' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {!viewingBookId ? (
+                <>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                        type="text" placeholder="Search by name or SSCU-ID..."
+                        className={`w-full pl-12 pr-4 py-3 ${themeInput} rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold transition-all`} />
+                    </div>
+                    <button onClick={() => setBookModal({ mode: 'add' })}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg hover:bg-blue-700 transition-colors">
+                      <UserPlus size={20} /> Add Member
+                    </button>
+                  </div>
+
+                  <div className={`${themeCard} rounded-[2.5rem] border overflow-hidden shadow-sm`}>
+                    <div className={`grid grid-cols-12 gap-4 px-8 py-4 ${D ? 'bg-slate-800/50' : 'bg-slate-50'} border-b ${D ? 'border-slate-800' : 'border-slate-100'} text-[10px] font-black uppercase tracking-widest text-slate-400`}>
+                      <div className="col-span-3">ID Number</div>
+                      <div className="col-span-5">Member Name</div>
+                      <div className="col-span-3 text-right">Balance</div>
+                      <div className="col-span-1"></div>
+                    </div>
+                    <div className={`divide-y ${D ? 'divide-slate-800' : 'divide-slate-50'}`}>
+                      {filteredBooks.length === 0 && (
+                        <div className="px-8 py-12 text-center">
+                          <p className={`${themeTextMuted} font-bold`}>No members yet. Add your first member above.</p>
+                        </div>
+                      )}
+                      {filteredBooks.map(book => {
+                        const bal = transactions.filter(t => t.bookId === book.id)
+                          .reduce((sum, t) => sum + (t.type === 'IN' ? t.amount : -t.amount), 0);
+                        return (
+                          <div key={book.id} onClick={() => setViewingBookId(book.id)}
+                            className={`grid grid-cols-12 gap-4 px-8 py-6 items-center cursor-pointer transition-colors group hover:bg-blue-50/5`}>
+                            <div className={`col-span-3 font-bold ${themeTextMuted} tracking-tight`}>{book.accountNumber}</div>
+                            <div className="col-span-5 flex items-center gap-4">
+                              <div className={`w-10 h-10 ${D ? 'bg-slate-800' : 'bg-slate-100'} rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all`}>
+                                <Building2 size={18} />
+                              </div>
+                              <span className="font-black">{book.name}</span>
+                            </div>
+                            <div className="col-span-3 text-right">
+                              <span className={`font-black text-lg ${bal >= 0 ? 'text-inherit' : 'text-red-500'}`}>{formatCurrency(bal)}</span>
+                            </div>
+                            <div className="col-span-1 flex justify-end">
+                              <ChevronRight className="text-slate-400 group-hover:text-blue-600" size={20} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                  <div className="flex items-center justify-between">
+                    <button onClick={() => setViewingBookId(null)} className={`flex items-center gap-2 ${themeTextMuted} font-bold`}>
+                      <ArrowLeft size={18} /> Back to Directory
+                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => setBookModal({ mode: 'edit', book: activeBook })} className={`${themeCard} flex items-center gap-2 px-4 py-2 border rounded-xl font-black text-xs hover:border-blue-500 transition-all`}>
+                        <Settings2 size={16} /> Settings
+                      </button>
+                      <button onClick={() => deleteBook(activeBook.id)} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-black text-xs shadow-md hover:bg-red-700 transition-colors disabled:opacity-50">
+                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className={`${themeCard} lg:col-span-2 p-8 rounded-[2.5rem] border shadow-sm flex flex-col md:flex-row justify-between items-center gap-6`}>
+                      <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg"><Building2 size={32} /></div>
+                        <div>
+                          <h2 className="text-2xl font-black">{activeBook?.name}</h2>
+                          <p className={`${themeTextMuted} font-bold tracking-widest uppercase text-xs`}>{activeBook?.accountNumber}</p>
+                        </div>
+                      </div>
+                      <div className="text-center md:text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Savings</p>
+                        <p className="text-3xl font-black text-blue-500">{formatCurrency(activeBookBalance)}</p>
+                      </div>
+                    </div>
+                    <div className={`${themeCard} p-6 rounded-[2.5rem] border shadow-sm flex flex-col justify-center gap-3`}>
+                      <button onClick={() => setTxModal({ mode: 'add', type: 'IN', bookId: activeBook.id })} className="w-full bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg hover:bg-green-700 transition-colors">
+                        <PlusCircle size={20} /> Cash In
+                      </button>
+                      <button onClick={() => setTxModal({ mode: 'add', type: 'OUT', bookId: activeBook.id })} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg hover:bg-red-700 transition-colors">
+                        <MinusCircle size={20} /> Cash Out
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={`${themeCard} rounded-[2.5rem] border shadow-sm overflow-hidden mb-12`}>
+                    <div className={`p-6 border-b ${D ? 'border-slate-800' : 'border-slate-50'} flex items-center justify-between`}>
+                      <h3 className="font-black text-lg flex items-center gap-2"><History size={20} className="text-slate-400" /> Ledger Entry</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className={`${D ? 'bg-slate-800/50' : 'bg-slate-50'} text-[10px] font-black text-slate-400 uppercase`}>
+                          <tr>
+                            <th className="px-8 py-4">Date</th>
+                            <th className="px-8 py-4">Description</th>
+                            <th className="px-8 py-4 text-right">In</th>
+                            <th className="px-8 py-4 text-right">Out</th>
+                            <th className="px-8 py-4"></th>
+                          </tr>
                         </thead>
-                        <tbody>
-                            {loading && (
-                                <tr><td colSpan="3" className="p-4 text-center text-gray-500">Loading customers...</td></tr>
-                            )}
-                            {!loading && filteredCustomers.length === 0 && (
-                                <tr><td colSpan="3" className="p-4 text-center text-gray-500">No results found.</td></tr>
-                            )}
-                            {filteredCustomers.map((customer) => (
-                                <tr 
-                                    key={customer.id} 
-                                    className="border-t border-gray-700 hover:bg-[#2a3447] text-white cursor-pointer"
-                                    onClick={() => handleSelectCustomer(customer)}
-                                >
-                                    <td className="p-4 font-medium">{customer.name}</td>
-                                    {/* REMOVED: Phone and Business cells */}
-                                    <td className="p-4">{customer.accountNo || 'N/A'}</td>
-                                    <td className={`p-4 font-bold text-right ${customer.balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {customer.balance ? customer.balance.toFixed(2) : '0.00'}
-                                    </td>
-                                </tr>
-                            ))}
+                        <tbody className={`divide-y ${D ? 'divide-slate-800' : 'divide-slate-50'}`}>
+                          {activeBookTxs.length === 0 && (
+                            <tr><td colSpan={5} className="px-8 py-10 text-center"><p className={`${themeTextMuted} font-bold`}>No transactions yet.</p></td></tr>
+                          )}
+                          {[...activeBookTxs].reverse().map(tx => (
+                            <tr key={tx.id} onClick={() => setSelectedTx(tx)} className="cursor-pointer group transition-colors hover:bg-blue-50/5">
+                              <td className={`px-8 py-5 text-xs font-bold ${themeTextMuted}`}>{tx.date?.toDate ? tx.date.toDate().toLocaleDateString() : 'Just now'}</td>
+                              <td className="px-8 py-5 font-bold">{tx.desc}</td>
+                              <td className="px-8 py-5 text-right font-black text-green-500">{tx.type === 'IN' ? formatCurrency(tx.amount) : '—'}</td>
+                              <td className="px-8 py-5 text-right font-black text-red-500">{tx.type === 'OUT' ? formatCurrency(tx.amount) : '—'}</td>
+                              <td className="px-8 py-5 text-right"><MoreHorizontal className="text-slate-400 group-hover:text-blue-500" size={18} /></td>
+                            </tr>
+                          ))}
                         </tbody>
-                    </table>
+                      </table>
+                    </div>
+                  </div>
                 </div>
+              )}
             </div>
-        );
-    };
+          )}
 
-    // 3. Customer Detail View 
-    const CustomerDetailView = ({ customer, transactions, onAddTransaction, onBack }) => {
-        // Find active loans for this customer
-        const customerLoans = loans.filter(l => l.customerId === customer.id && l.status === 'Active');
-
-        // Calculations
-        const totalCashIn = transactions
-            .filter(t => t.type === 'cash_in')
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        const totalCashOut = transactions
-            .filter(t => t.type === 'cash_out')
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        // Determine colors
-        const balanceColor = customer.balance >= 0 ? 'text-green-400' : 'text-red-400';
-
-        return (
-            <div>
-                <div className="flex justify-between items-start mb-6 border-b border-gray-700 pb-4 flex-wrap gap-4">
-                    <h2 className="text-3xl font-bold text-white flex items-center">
-                        <button onClick={onBack} className="text-gray-400 hover:text-white mr-3 p-2 rounded-full hover:bg-[#2a3447] transition">
-                            <ArrowLeft size={24} />
-                        </button>
-                        {customer.name} Account <span className="text-base font-normal text-gray-500 ml-4">(Acct No: {customer.accountNo || 'N/A'})</span>
-                    </h2>
-                    
-                    {/* Cash In / Cash Out Buttons */}
-                    <div className="flex space-x-3">
-                        <button
-                            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow-md"
-                            onClick={() => onAddTransaction('cash_in')}
-                        >
-                            <TrendingUp size={20} />
-                            <span>Cash In</span>
-                        </button>
-                        <button
-                            className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold shadow-md"
-                            onClick={() => onAddTransaction('cash_out')}
-                        >
-                            <TrendingDown size={20} />
-                            <span>Cash Out</span>
-                        </button>
-                    </div>
+          {/* DEDUCTIONS */}
+          {activeTab === 'deductions' && (
+            <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+              <div className={`${themeCard} p-8 rounded-[2.5rem] border shadow-sm space-y-6`}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-black">Batch Member Charges</h3>
+                  <button onClick={() => setSelectedBookIds(selectedBookIds.length === books.length ? [] : books.map(b => b.id))}
+                    className={`${D ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'} px-4 py-2 rounded-xl text-xs font-black`}>
+                    {selectedBookIds.length === books.length ? 'Deselect All' : 'Select All'}
+                  </button>
                 </div>
-
-                {/* Financial Summary Cards */}
-                <div className="flex overflow-x-auto gap-4 mb-8 pb-2">
-                    {/* Net Balance Card */}
-                    <StatCard 
-                        title="Net Balance (Savings)" 
-                        value={customer.balance} 
-                        colorClass={balanceColor} 
-                    />
-                    {/* Total Cash In Card */}
-                    <StatCard 
-                        title="Total Cash In (GHS)" 
-                        value={totalCashIn} 
-                        colorClass="text-green-400" 
-                    />
-                    {/* Total Cash Out Card */}
-                    <StatCard 
-                        title="Total Cash Out (GHS)" 
-                        value={totalCashOut} 
-                        colorClass="text-red-400" 
-                    />
-                    <StatCard 
-                        title="Active Loans Count" 
-                        value={customerLoans.length} 
-                        colorClass="text-yellow-500" 
-                    />
-                </div>
-                
-                {/* Loan Status Box (Updated to include Repay button) */}
-                {customerLoans.length > 0 && (
-                    <div className="bg-yellow-900/30 p-4 rounded-xl mb-8 border border-yellow-700">
-                        <h3 className="text-xl font-semibold text-yellow-300 mb-2 flex items-center space-x-2">
-                            <PiggyBank size={20}/>
-                            <span>Active Loans ({customerLoans.length})</span>
-                        </h3>
-                        <div className="space-y-3">
-                            {customerLoans.map(loan => (
-                                <div key={loan.id} className="flex justify-between items-center py-1 border-b border-yellow-800/50 last:border-b-0">
-                                    <p className="text-sm text-yellow-100 flex-1">
-                                        Loan ID: {loan.id.substring(0, 8)}... | Outstanding: **GHS{loan.outstandingBalance.toFixed(2)}** | Monthly Est: GHS{loan.monthlyPaymentEstimate}
-                                    </p>
-                                    <button
-                                        className="text-xs px-3 py-1 bg-yellow-600 rounded-md hover:bg-yellow-700 transition font-medium ml-4"
-                                        onClick={() => {
-                                            const fullLoan = loans.find(l => l.id === loan.id);
-                                            setSelectedLoanForRepayment({ ...fullLoan, customerName: customer.name });
-                                            setIsRepaymentModalOpen(true);
-                                        }}
-                                        disabled={loan.outstandingBalance <= 0}
-                                    >
-                                        Repay
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                {batchError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-300 text-sm flex gap-2">
+                    <AlertCircle size={16} /> {batchError}
+                  </div>
                 )}
-
-
-                {/* Transaction History Table */}
-                <h3 className="text-2xl font-semibold text-white mb-4">Recent Entries & History</h3>
-                <div className="bg-[#1a2333] rounded-xl overflow-x-auto shadow-lg">
-                    <table className="min-w-full table-auto">
-                        <thead>
-                            <tr className="bg-[#0e1625] text-left text-gray-400 uppercase text-sm">
-                                <th className="w-1/6 p-4 font-semibold">Date & Time</th>
-                                <th className="w-1/6 p-4 font-semibold">Type</th>
-                                <th className="w-1/6 p-4 font-semibold text-right">Amount (GHS)</th>
-                                <th className="w-1/2 p-4 font-semibold">Description</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {transactions.length === 0 ? (
-                                <tr>
-                                    <td colSpan="4" className="p-4 text-center text-gray-500">No transactions recorded yet.</td>
-                                </tr>
-                            ) : (
-                                transactions.map((t) => (
-                                    <tr key={t.id} className="border-t border-gray-700 hover:bg-[#2a3447] text-white">
-                                        <td className="p-4 text-sm">{new Date(t.date.toDate()).toLocaleString()}</td>
-                                        <td className={`p-4 font-medium ${t.type === 'cash_in' ? 'text-green-400' : 'text-red-400'}`}>
-                                            {t.type === 'cash_in' ? 'Cash In' : 'Cash Out'}
-                                        </td>
-                                        <td className={`p-4 font-bold text-right`}>
-                                            {t.amount.toFixed(2)}
-                                        </td>
-                                        <td className="p-4 text-sm truncate max-w-xs">{t.description || 'N/A'}</td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
-    };
-
-    // 4. Monthly Deduction View 
-    const MonthlyDeductionView = () => (
-        <div>
-            <h2 className="text-3xl font-bold text-white mb-6">Monthly Deduction Processing</h2>
-            <div className="bg-[#1a2333] p-6 rounded-xl shadow-lg">
-                <h3 className="text-xl font-medium text-gray-300 mb-4">Set Deduction Amount (GHS)</h3>
-                <div className="relative mb-4">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-bold">GHS</span>
-                    <input
-                        type="number"
-                        placeholder="Enter amount to deduct (e.g., 50.00)"
-                        value={deductionAmount}
-                        onChange={(e) => setDeductionAmount(e.target.value)}
-                        className="w-full p-3 pl-12 bg-[#0e1625] text-white border border-gray-700 rounded-lg focus:ring-green-400 focus:border-green-400"
-                        step="0.01"
-                    />
-                </div>
-                
-                <p className="text-sm text-gray-400 mb-6">
-                    Enter the amount, select the customers below, and click 'Process Deductions'. 
-                    This will record a **Cash Out** transaction and update each selected customer's balance.
-                </p>
-                
-                <div className="flex justify-end">
-                    <button 
-                        onClick={handleProcessDeduction}
-                        disabled={selectedDeductionIds.length === 0 || !deductionAmount || parseFloat(deductionAmount) <= 0}
-                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold disabled:bg-gray-500 disabled:cursor-not-allowed"
-                    >
-                        Process {selectedDeductionIds.length} Selected Deductions
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {books.map(book => (
+                      <button key={book.id}
+                        onClick={() => setSelectedBookIds(prev => prev.includes(book.id) ? prev.filter(id => id !== book.id) : [...prev, book.id])}
+                        className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedBookIds.includes(book.id) ? 'border-blue-600 bg-blue-500/10' : D ? 'border-slate-800' : 'border-slate-100'}`}>
+                        <div className="text-left font-black">{book.name}</div>
+                        {selectedBookIds.includes(book.id) ? <CheckCircle2 className="text-blue-500" size={20} /> : <Circle className="text-slate-400" size={20} />}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`${D ? 'bg-slate-800/50' : 'bg-slate-50'} p-6 rounded-[2rem] space-y-4`}>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Charge Amount (GHS)</label>
+                      <input value={deductionAmount} onChange={e => setDeductionAmount(e.target.value)} type="number" placeholder="0.00"
+                        className={`w-full ${themeInput} border-2 rounded-2xl py-4 px-6 text-xl font-black outline-none focus:ring-2 focus:ring-blue-500`} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Charge Narrative</label>
+                      <input value={deductionDesc} onChange={e => setDeductionDesc(e.target.value)} type="text" placeholder="Monthly Fee, etc."
+                        className={`w-full ${themeInput} border-2 rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-blue-500`} />
+                    </div>
+                    <button onClick={applyBatchDeduction} disabled={selectedBookIds.length === 0 || !deductionAmount || saving}
+                      className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black shadow-lg disabled:opacity-50 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                      {saving ? <Loader2 size={18} className="animate-spin" /> : null}
+                      Process Batch ({selectedBookIds.length} members)
                     </button>
+                  </div>
                 </div>
-
-                <div className="mt-8 pt-6 border-t border-gray-700">
-                    <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-lg font-medium text-gray-300">Customers ({selectedDeductionIds.length} selected)</h4>
-                        <label className="flex items-center space-x-2 text-gray-400">
-                            <input 
-                                type="checkbox" 
-                                className="form-checkbox text-green-600 rounded" 
-                                checked={selectedDeductionIds.length === customers.length && customers.length > 0}
-                                onChange={() => {
-                                    if (selectedDeductionIds.length === customers.length) {
-                                        setSelectedDeductionIds([]);
-                                    } else {
-                                        setSelectedDeductionIds(customers.map(c => c.id));
-                                    }
-                                }}
-                            />
-                            <span>Select All</span>
-                        </label>
-                    </div>
-                    {/* Customer List Table */}
-                    <div className="bg-[#0e1625] rounded-lg overflow-x-auto max-h-80">
-                        <table className="min-w-full">
-                            <thead>
-                                <tr className="sticky top-0 bg-[#1a2333] text-left text-gray-400 uppercase text-xs">
-                                    <th className="w-1/12 p-3">Select</th>
-                                    <th className="w-5/12 p-3 font-semibold">Customer Name</th>
-                                    <th className="w-3/12 p-3 font-semibold text-right">Current Balance (GHS)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {customers.length === 0 ? (
-                                    <tr><td colSpan="3" className="p-4 text-center text-gray-500">No customers available for deduction.</td></tr>
-                                ) : (
-                                    customers.map((customer) => (
-                                        <tr key={customer.id} className="border-t border-gray-700 text-white hover:bg-[#2a3447]">
-                                            <td className="p-3">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedDeductionIds.includes(customer.id)}
-                                                    onChange={() => toggleCustomerSelection(customer.id)}
-                                                    className="form-checkbox h-4 w-4 text-green-600 rounded bg-gray-700 border-gray-600 focus:ring-green-500"
-                                                />
-                                            </td>
-                                            <td className="p-3 font-medium">{customer.name}</td>
-                                            <td className={`p-3 font-bold text-right ${customer.balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {customer.balance ? customer.balance.toFixed(2) : '0.00'}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+              </div>
             </div>
-        </div>
-    );
+          )}
 
-    // 5. Loan Management View 
-    const LoanManagementView = () => {
-        // Prepare data: merge loan details with customer name
-        const loanData = loans.map(loan => {
-            const customer = customers.find(c => c.id === loan.customerId);
-            return {
-                ...loan,
-                customerName: customer ? customer.name : 'Unknown Customer',
-            };
-        });
+          {/* SETTINGS */}
+          {activeTab === 'settings' && (
+            <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-300">
+              <section className={`${themeCard} p-8 rounded-[2.5rem] border shadow-sm`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <ShieldCheck size={20} className="text-blue-500" />
+                  <h3 className="text-xl font-black">Signed In Account</h3>
+                </div>
+                <div className={`${D ? 'bg-slate-800/50' : 'bg-slate-50'} p-4 rounded-2xl`}>
+                  <p className="font-black">{user.displayName || 'User'}</p>
+                  <p className={`${themeTextMuted} text-sm font-bold`}>{user.email || user.phoneNumber}</p>
+                  <p className={`text-[10px] mt-1 ${user.emailVerified ? 'text-green-500' : 'text-yellow-500'} font-black uppercase`}>
+                    {user.emailVerified ? '✓ Email Verified' : '⚠ Email not verified'}
+                  </p>
+                </div>
+              </section>
 
-        const activeLoans = loanData.filter(loan => loan.status === 'Active');
+              <section className={`${themeCard} p-8 rounded-[2.5rem] border shadow-sm`}>
+                <div className="flex items-center gap-3 mb-6">
+                  <Palette size={20} className="text-blue-500" />
+                  <h3 className="text-xl font-black">Visual Preference</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <button onClick={() => setIsDarkMode(false)} className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${!D ? 'border-blue-600 bg-blue-500/10' : D ? 'border-slate-800 bg-slate-800/50' : 'border-transparent bg-slate-50'}`}>
+                    <div className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-600"><Sun size={20} /></div>
+                    <span className="font-black uppercase text-xs">Light</span>
+                  </button>
+                  <button onClick={() => setIsDarkMode(true)} className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${D ? 'border-blue-600 bg-blue-500/10' : 'border-transparent bg-slate-100'}`}>
+                    <div className="w-10 h-10 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center text-yellow-400"><Moon size={20} /></div>
+                    <span className="font-black uppercase text-xs">Dark</span>
+                  </button>
+                </div>
+              </section>
 
-        return (
-            <div>
-                <h2 className="text-3xl font-bold text-white mb-6">Loan Management</h2>
-                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-                    <StatCard 
-                        title="Active Loans" 
-                        value={activeLoans.length} 
-                        colorClass="text-yellow-500"
-                    />
-                    <StatCard 
-                        title="Total Outstanding Debt" 
-                        value={dashboardTotals.totalOutstandingLoan} 
-                        colorClass="text-red-400"
-                    />
-                    <button 
-                        className="flex items-center space-x-2 px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-semibold shadow-lg"
-                        onClick={() => setIsLoanModalOpen(true)}
-                    >
-                        <Plus size={20} />
-                        <span>New Loan</span>
+              <section className={`${themeCard} p-8 rounded-[2.5rem] border shadow-sm`}>
+                <div className="flex items-center gap-3 mb-6">
+                  <BadgeDollarSign size={20} className="text-blue-500" />
+                  <h3 className="text-xl font-black">Regional Config</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className={`flex items-center justify-between p-4 ${D ? 'bg-slate-800/50' : 'bg-slate-50'} rounded-2xl`}>
+                    <div className="flex items-center gap-3 font-bold"><Languages size={18} className="text-slate-400" /> Operational Currency</div>
+                    <span className="font-black text-blue-500">GHS (GH₵)</span>
+                  </div>
+                  <div className={`flex items-center justify-between p-4 ${D ? 'bg-slate-800/50' : 'bg-slate-50'} rounded-2xl`}>
+                    <div className="flex items-center gap-3 font-bold"><BellRing size={18} className="text-slate-400" /> Notifications</div>
+                    <button onClick={() => setNotifications(!notifications)} className={`w-12 h-6 rounded-full transition-colors relative ${notifications ? 'bg-green-500' : 'bg-slate-600'}`}>
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifications ? 'left-7' : 'left-1'}`} />
                     </button>
+                  </div>
                 </div>
+              </section>
 
-                <div className="bg-[#1a2333] rounded-xl overflow-x-auto shadow-lg mt-4">
-                    <table className="min-w-full table-auto">
-                        <thead>
-                            <tr className="bg-[#0e1625] text-left text-gray-400 uppercase text-sm">
-                                <th className="w-1/5 p-4 font-semibold">Customer</th>
-                                <th className="w-1/6 p-4 font-semibold text-right">Principal (GHS)</th>
-                                <th className="w-1/6 p-4 font-semibold text-right">Outstanding (GHS)</th>
-                                <th className="w-1/12 p-4 font-semibold">Rate (%)</th>
-                                <th className="w-1/12 p-4 font-semibold">Term (M)</th>
-                                <th className="w-1/6 p-4 font-semibold">Start Date</th>
-                                <th className="w-1/12 p-4 font-semibold">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loanData.length === 0 ? (
-                                <tr><td colSpan="7" className="p-4 text-center text-gray-500">No loans found.</td></tr>
-                            ) : (
-                                loanData.map((loan) => (
-                                    <tr 
-                                        key={loan.id} 
-                                        className="border-t border-gray-700 hover:bg-[#2a3447] text-white cursor-pointer"
-                                        onClick={() => handleSelectCustomer(customers.find(c => c.id === loan.customerId))}
-                                    >
-                                        <td className="p-4 font-medium">{loan.customerName}</td>
-                                        <td className="p-4 text-right">{loan.principal.toFixed(2)}</td>
-                                        <td className={`p-4 font-bold text-right ${loan.outstandingBalance > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                            {loan.outstandingBalance.toFixed(2)}
-                                        </td>
-                                        <td className="p-4">{loan.interestRate.toFixed(1)}%</td>
-                                        <td className="p-4">{loan.termMonths}</td>
-                                        <td className="p-4 text-sm">{loan.startDate.toLocaleDateString()}</td>
-                                        <td className="p-4">
-                                            <span className={`px-2 py-1 text-xs rounded-full font-semibold ${
-                                                loan.status === 'Active' ? 'bg-yellow-800 text-yellow-100' : 'bg-green-800 text-green-100'
-                                            }`}>
-                                                {loan.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+              <section className={`${themeCard} p-8 rounded-[2.5rem] border shadow-sm`}>
+                <div className="flex items-center gap-3 mb-6">
+                  <ShieldCheck size={20} className="text-blue-500" />
+                  <h3 className="text-xl font-black">System Security</h3>
                 </div>
+                <div className="space-y-4">
+                  <button onClick={() => signOut(auth)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-black transition-all">
+                    <LogIn size={18} /> Sign Out
+                  </button>
+                  <button onClick={exportData} className={`w-full py-4 border-2 ${D ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-600'} rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-blue-500 hover:text-white transition-all`}>
+                    <Database size={18} /> Export Data (.json)
+                  </button>
+                </div>
+              </section>
+
+              <footer className="pt-8 flex flex-col items-center gap-2 opacity-60">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest"><Copyright size={14} /> 2024 SSCU Systems</div>
+                <p className="text-[10px] font-bold text-center">Made by <span className="text-blue-500">Jizzy Blay Solutions</span></p>
+              </footer>
             </div>
-        );
-    };
+          )}
 
-    // 6. App Settings View (unchanged)
-    const AppSettingsView = () => (
-        <div>
-            <h2 className="text-3xl font-bold text-white mb-6">App Settings</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* User Account Management (OTP Mock) */}
-                <div className="bg-[#1a2333] p-6 rounded-xl shadow-lg col-span-1 lg:col-span-2">
-                    <div className="flex items-center space-x-3 mb-4 text-gray-200">
-                        <User size={20} className="text-pink-400" />
-                        <h3 className="text-xl font-semibold">User Account Management (OTP Mock)</h3>
-                    </div>
-                    <div className="space-y-4">
-                        <p className="text-gray-400 mb-2">
-                            The current environment uses **secure token-based authentication** for persistence. Below is the full **User Registration Process** architectural plan, as requested, including OTP verification.
-                        </p>
-                        <div className="bg-[#0e1625] p-4 rounded-lg text-sm space-y-2 border border-pink-700">
-                            <p className="text-white font-medium flex items-center"><span className="text-pink-400 mr-2">1.</span> **Registration:** User provides Name & Email/Phone.</p>
-                            <p className="text-white font-medium flex items-center"><span className="text-pink-400 mr-2">2.</span> **Send OTP:** Backend sends a unique OTP (4-6 digits) via Email Service or SMS API (e.g., Twilio).</p>
-                            <p className="text-white font-medium flex items-center"><span className="text-pink-400 mr-2">3.</span> **Verify OTP:** User inputs OTP; if valid and non-expired, account is marked as **verified**.</p>
-                            <p className="text-white font-medium flex items-center"><span className="text-pink-400 mr-2">4.</span> **Set Password:** User creates a secure password, which is hashed and stored.</p>
-                            <p className="text-gray-500 text-xs mt-3">
-                                *Note: OTP sending/verification requires external server APIs (like Twilio/SendGrid). This app uses the current Firebase environment for core data storage and user persistence.*
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* System Configuration */}
-                <div className="bg-[#1a2333] p-6 rounded-xl shadow-lg">
-                    <div className="flex items-center space-x-3 mb-4 text-gray-200">
-                        <Zap size={20} className="text-yellow-400" />
-                        <h3 className="text-xl font-semibold">System Configuration</h3>
-                    </div>
-                    <div className="space-y-4">
-                        <SettingItem label="Default Currency" value="GHS (Ghana Cedi)" />
-                        <SettingItem label="Application Version" value="1.0.1 (SSCU Enhanced)" />
-                        <SettingToggle label="Enable Two-Factor Auth" checked={true} />
-                    </div>
-                </div>
+        </div>
+      </main>
 
-                {/* Deduction Management */}
-                <div className="bg-[#1a2333] p-6 rounded-xl shadow-lg">
-                    <div className="flex items-center space-x-3 mb-4 text-gray-200">
-                        <Clock size={20} className="text-blue-400" />
-                        <h3 className="text-xl font-semibold">Deduction Management</h3>
-                    </div>
-                    <div className="space-y-4">
-                        <SettingItem label="Monthly Deduction Day" value="1st of the Month" />
-                        <SettingItem label="Late Fee Percentage" value="5.0%" />
-                        <SettingToggle label="Require Admin Approval for Deductions" checked={true} />
-                    </div>
-                </div>
+      {/* BOTTOM NAV */}
+      <nav className={`fixed bottom-0 left-0 right-0 ${themeHeader} border-t z-40 px-4 py-3 flex justify-around`}>
+        {NavItems.map(item => {
+          const Icon = item.icon;
+          const active = activeTab === item.id;
+          return (
+            <button key={item.id} onClick={() => { setActiveTab(item.id); setViewingBookId(null); }}
+              className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl transition-all ${active ? 'text-blue-500' : themeTextMuted}`}>
+              <Icon size={22} />
+              <span className="text-[10px] font-black uppercase">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* MODALS (same as before, unchanged except minor error handling) */}
+      {bookModal && (
+        <>
+          <div onClick={() => setBookModal(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]" />
+          <div className={`fixed inset-x-4 bottom-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md ${themeCard} z-[70] rounded-[2rem] p-8 border shadow-2xl`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black">{bookModal.mode === 'add' ? 'Add Member' : 'Edit Member'}</h3>
+              <button onClick={() => setBookModal(null)} className={`p-2 ${D ? 'bg-slate-800' : 'bg-slate-100'} rounded-xl`}><X size={20} /></button>
             </div>
-        </div>
-    );
+            <form onSubmit={saveBook} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-1">Full Name</label>
+                <input name="name" defaultValue={bookModal.book?.name} required className={`w-full ${themeInput} border-2 rounded-2xl py-3 px-5 font-bold outline-none focus:ring-2 focus:ring-blue-500`} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-1">Account Number</label>
+                <input name="accountNumber" defaultValue={bookModal.book?.accountNumber || `SSCU-${Date.now()}`} required className={`w-full ${themeInput} border-2 rounded-2xl py-3 px-5 font-bold outline-none focus:ring-2 focus:ring-blue-500`} />
+              </div>
+              <button type="submit" disabled={saving} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg disabled:opacity-50 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                {saving && <Loader2 size={18} className="animate-spin" />}
+                {bookModal.mode === 'add' ? 'Add Member' : 'Save Changes'}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
 
-    const SettingItem = ({ label, value }) => (
-        <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-            <span className="text-gray-400">{label}</span>
-            <span className="text-white font-medium">{value}</span>
-        </div>
-    );
-
-    const SettingToggle = ({ label, checked }) => (
-        <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-            <span className="text-gray-400">{label}</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={checked} readOnly className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
-            </label>
-        </div>
-    );
-
-
-    // Main View Selector
-    const renderView = () => {
-        if (selectedCustomer && currentView === 'Customer Detail') {
-            // Note: onAddTransaction now takes a type argument (cash_in or cash_out)
-            return (
-                <CustomerDetailView 
-                    customer={selectedCustomer} 
-                    transactions={transactions} 
-                    onAddTransaction={(type) => {
-                        setIsTransactionDrawerOpen(true);
-                    }}
-                    onBack={handleBackToCashBook}
-                />
-            );
-        }
-
-        switch (currentView) {
-            case 'Dashboard':
-                return <DashboardView />;
-            case 'Cash Book':
-                return <CashBookView />;
-            case 'Monthly Deduction':
-                return <MonthlyDeductionView />;
-            case 'Loan Management': // NEW VIEW
-                return <LoanManagementView />;
-            case 'App Settings':
-                return <AppSettingsView />;
-            default:
-                return <DashboardView />;
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-[#0e1625] text-white p-4 sm:p-8 font-sans">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <header className="flex justify-between items-center py-4 px-6 bg-[#1a2333] rounded-xl shadow-2xl mb-6">
-                    <h1 className="text-2xl font-bold text-green-400">SSCU Manager (GHS)</h1>
-                    <div className="flex items-center space-x-4">
-                        <p className="text-xs text-gray-400 hidden sm:block">
-                            User ID: <span className="font-mono text-green-400">{userId || 'Connecting...'}</span>
-                        </p>
-                        <button className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition text-sm">
-                            Log Out
-                        </button>
-                    </div>
-                </header>
-                
-                {/* Navigation and Main Content */}
-                <div className="bg-[#1a2333] p-6 rounded-xl shadow-2xl">
-                    {/* Navigation Tabs */}
-                    <div className="flex space-x-2 border-b border-gray-700 pb-2 mb-8 overflow-x-auto">
-                        {navItems.map(item => (
-                            <NavTab key={item.name} name={item.name} icon={item.icon} />
-                        ))}
-                    </div>
-
-                    {/* Message/Error Display */}
-                    {error && (
-                        <div className="p-4 bg-red-800 text-white rounded-lg mb-6 border border-red-500 transition duration-300">
-                            <strong>System Message:</strong> {error}
-                        </div>
-                    )}
-
-                    {/* Main View */}
-                    {renderView()}
-                </div>
+      {txModal && (
+        <>
+          <div onClick={() => setTxModal(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]" />
+          <div className={`fixed inset-x-4 bottom-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md ${themeCard} z-[70] rounded-[2rem] p-8 border shadow-2xl`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-black ${txModal.type === 'IN' ? 'text-green-500' : 'text-red-500'}`}>
+                {txModal.type === 'IN' ? '↑ Cash In' : '↓ Cash Out'}
+              </h3>
+              <button onClick={() => setTxModal(null)} className={`p-2 ${D ? 'bg-slate-800' : 'bg-slate-100'} rounded-xl`}><X size={20} /></button>
             </div>
+            <form onSubmit={saveTransaction} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-1">Amount (GHS)</label>
+                <input name="amount" type="number" step="0.01" min="0.01" defaultValue={txModal.tx?.amount} required className={`w-full ${themeInput} border-2 rounded-2xl py-4 px-6 text-2xl font-black outline-none focus:ring-2 focus:ring-blue-500`} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-1">Description</label>
+                <input name="desc" defaultValue={txModal.tx?.desc} required className={`w-full ${themeInput} border-2 rounded-2xl py-3 px-5 font-bold outline-none focus:ring-2 focus:ring-blue-500`} />
+              </div>
+              <button type="submit" disabled={saving} className={`w-full py-4 ${txModal.type === 'IN' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded-2xl font-black shadow-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-2`}>
+                {saving && <Loader2 size={18} className="animate-spin" />}
+                Confirm {txModal.type === 'IN' ? 'Deposit' : 'Withdrawal'}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
 
-            {/* Modals & Drawer */}
-            {isCustomerModalOpen && <NewCustomerModal 
-                onSubmit={handleAddCustomer} 
-                onClose={() => setIsCustomerModalOpen(false)} 
-            />}
-            {/* NEW DRAWER */}
-            {isTransactionDrawerOpen && selectedCustomer && <TransactionDrawer 
-                customer={selectedCustomer}
-                onSubmit={handleAddTransaction}
-                onClose={() => setIsTransactionDrawerOpen(false)}
-            />}
-            {isDeductionConfirmationOpen && <DeductionConfirmationModal 
-                amount={deductionPendingData.amount}
-                customerIds={deductionPendingData.customerIds}
-                onConfirm={confirmDeduction}
-                onClose={() => setIsDeductionConfirmationOpen(false)}
-            />}
-            {isLoanModalOpen && <NewLoanModal 
-                customers={customers}
-                onSubmit={handleAddLoan}
-                onClose={() => setIsLoanModalOpen(false)}
-            />}
-            {isRepaymentModalOpen && selectedLoanForRepayment && <LoanRepaymentModal
-                loan={selectedLoanForRepayment}
-                onSubmit={handleRepayLoan}
-                onClose={() => {
-                    setIsRepaymentModalOpen(false);
-                    setSelectedLoanForRepayment(null);
-                }}
-            />}
-        </div>
-    );
+      {selectedTx && (
+        <>
+          <div onClick={() => setSelectedTx(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]" />
+          <div className={`fixed top-0 right-0 h-full w-full max-w-sm ${themeCard} z-[70] shadow-2xl p-8 flex flex-col border-l`}>
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-black uppercase">Transaction Detail</h3>
+              <button onClick={() => setSelectedTx(null)} className={`p-2 ${D ? 'bg-slate-800' : 'bg-slate-100'} rounded-xl`}><X size={20} /></button>
+            </div>
+            <div className={`${D ? 'bg-slate-800' : 'bg-slate-50'} p-6 rounded-3xl mb-6`}>
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Value</p>
+              <h4 className={`text-3xl font-black ${selectedTx.type === 'IN' ? 'text-green-500' : 'text-red-500'}`}>{formatCurrency(selectedTx.amount)}</h4>
+              <p className="font-bold mt-2">{selectedTx.desc}</p>
+              <p className={`text-xs ${themeTextMuted} font-bold mt-1`}>
+                {selectedTx.date?.toDate ? selectedTx.date.toDate().toLocaleString() : 'Just now'}
+              </p>
+            </div>
+            <div className="mt-auto space-y-3">
+              <button onClick={() => { setTxModal({ mode: 'edit', type: selectedTx.type, bookId: selectedTx.bookId, tx: selectedTx }); setSelectedTx(null); }} className={`w-full py-4 border-2 ${D ? 'border-slate-700' : 'border-slate-200'} rounded-2xl font-black flex items-center justify-center gap-2 hover:border-blue-500 transition-all`}>
+                <Edit3 size={18} /> Edit
+              </button>
+              <button onClick={() => deleteTransaction(selectedTx.id)} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-red-700 transition-colors">
+                <Trash2 size={18} /> Delete Entry
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+    </div>
+  );
+};
+
+// ════════════════════════════════════════════════════════════
+//  ROOT — watches Firebase auth state
+// ════════════════════════════════════════════════════════════
+const App = () => {
+  const [user, setUser] = useState(undefined);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setChecking(false);
+    });
+    return unsub;
+  }, []);
+
+  if (checking) return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center flex-col gap-4">
+      <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center">
+        <Building2 size={28} className="text-white" />
+      </div>
+      <Loader2 size={28} className="text-blue-500 animate-spin" />
+    </div>
+  );
+
+  if (!user) return <AuthScreen />;
+  return <MainApp user={user} />;
 };
 
 export default App;
