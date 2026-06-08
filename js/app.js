@@ -137,8 +137,12 @@ function renderLive() {
 function renderCasino() {
   $('casinoGrid').innerHTML = CASINO_GAMES.map(g => `
     <div class="casino-card" onclick="toast('${g.name} — coming soon!','info')">
-      <div class="cc-thumb">${g.icon}</div>
-      <div class="cc-name">${g.name}${g.hot ? ' 🔥' : ''}</div>
+      <div class="cc-thumb">
+        <img src="${g.img}" alt="${g.name}" class="cc-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+        <span class="cc-fallback" style="display:none">🎮</span>
+      </div>
+      ${g.hot ? '<span class="cc-hot">HOT</span>' : ''}
+      <div class="cc-name">${g.name}</div>
       <div class="cc-provider">${g.provider}</div>
     </div>`).join('');
 }
@@ -146,7 +150,10 @@ function renderCasino() {
 function renderVirtual() {
   $('virtualGrid').innerHTML = VIRTUAL_SPORTS.map(v => `
     <div class="virt-card" onclick="toast('Opening ${v.name}…','info')">
-      <div class="vc-icon">${v.icon}</div>
+      <div class="vc-thumb">
+        <img src="${v.img}" alt="${v.name}" class="vc-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+        <span class="vc-fallback" style="display:none">⚽</span>
+      </div>
       <div class="vc-name">${v.name}</div>
       <div class="vc-desc">${v.desc}</div>
       <span class="vc-live">${v.badge}</span>
