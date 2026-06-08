@@ -1,644 +1,490 @@
 // ================================================================
-//  SportyWin — Main Application Logic
+//  SportyBet Clone — App Logic
 // ================================================================
 
-// ── State ──────────────────────────────────────────────────────
 const state = {
-  betSlip: [],          // { id, match, market, selection, odd }
-  placedBets: [],       // placed bet records
-  activeSport: 'football',
-  activeSection: 'sports',
-  activeFilter: 'all',
-  activeSlipType: 'single',
-  activeMarket: '1x2',
+  slip: [],
+  bets: [],
+  sport: 'football',
+  section: 'sports',
+  filter: 'all',
   balance: 5000.00,
-  loggedIn: false,
-  jackpotSeconds: 9930  // countdown ~2h45m
+  jpSecs: 9900
 };
 
-// ── DOM Refs ───────────────────────────────────────────────────
-const $ = (id) => document.getElementById(id);
-const $$ = (sel) => document.querySelectorAll(sel);
+const $ = id => document.getElementById(id);
+const $$ = s => document.querySelectorAll(s);
 
-// ── INIT ───────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderMatches();
-  renderLiveMatches();
+  renderLive();
   renderCasino();
   renderVirtual();
-  renderResults();
   renderPromos();
-  bindEvents();
-  startJackpotCountdown();
-  startLiveOddsFlicker();
+  bindAll();
+  tickClock();
+  tickJackpot();
+  flickerOdds();
   updateBalance();
 });
 
-// ── RENDER MATCHES ─────────────────────────────────────────────
+// ── RENDER MATCHES ────────────────────────────────────────────
 function renderMatches(filter = 'all') {
-  const container = $('matchesContainer');
-  const sport = state.activeSport;
-  const data = MATCHES_DATA[sport];
-
-  if (!data) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-secondary)">No matches available for this sport.</div>';
-    return;
-  }
+  const wrap = $('matchesWrap');
+  const data = MATCHES_DATA[state.sport];
+  if (!data) { wrap.innerHTML = '<div style="padding:30px;text-align:center;color:#555">No matches for this sport.</div>'; return; }
 
   let html = '';
   data.forEach(league => {
-    let matches = league.matches;
-    if (filter === 'today') matches = matches.filter(m => m.time.includes('Today') || m.isLive);
-    if (filter === 'tomorrow') matches = matches.filter(m => m.time.includes('Tomorrow'));
-    if (filter === 'live') matches = matches.filter(m => m.isLive);
-    if (!matches.length) return;
+    let ms = league.matches;
+    if (filter === 'today')    ms = ms.filter(m => m.time.includes('Today') || m.isLive);
+    if (filter === 'tomorrow') ms = ms.filter(m => m.time.includes('Tomorrow'));
+    if (filter === 'live')     ms = ms.filter(m => m.isLive);
+    if (!ms.length) return;
 
-    html += `
-      <div class="league-group">
-        <div class="league-header" onclick="toggleLeague(this)">
-          <span class="league-flag">${league.flag}</span>
-          <span class="league-name">${league.league}</span>
-          <span class="league-count">${matches.length}</span>
-          <span class="league-toggle">▼</span>
-        </div>
-        <div class="match-list">
-          ${matches.map(m => renderMatchRow(m)).join('')}
-        </div>
-      </div>`;
+    html += `<div class="lg-group">
+      <div class="lg-head" onclick="toggleLeague(this)">
+        <span class="lg-flag">${league.flag}</span>
+        <span class="lg-name">${league.league}</span>
+        <span class="lg-count">${ms.length}</span>
+        <span class="lg-arrow">▼</span>
+      </div>
+      <div class="match-list">${ms.map(matchRow).join('')}</div>
+    </div>`;
   });
 
-  container.innerHTML = html || '<div style="padding:40px;text-align:center;color:var(--text-secondary)">No matches found for this filter.</div>';
+  wrap.innerHTML = html || '<div style="padding:30px;text-align:center;color:#555">No matches for this filter.</div>';
 }
 
-function renderMatchRow(m) {
-  const isInSlip = (sel) => state.betSlip.some(b => b.id === `${m.id}-${sel}`);
-
+function matchRow(m) {
   const timeHtml = m.isLive
-    ? `<span class="match-time live-time">🔴 ${m.minute}</span>`
-    : `<span class="match-time">${m.time}</span>`;
+    ? `<div class="mr-time is-live"><span class="live-pip"></span> ${m.minute}</div>`
+    : `<div class="mr-time">${m.time}</div>`;
 
-  const homeScore = m.isLive ? `<span class="live-score">${m.liveScore.split('-')[0]}</span>` : '';
-  const awayScore = m.isLive ? `<span class="live-score">${m.liveScore.split('-')[1]}</span>` : '';
+  const hScore = m.isLive ? `<span class="score-badge">${m.liveScore.split('-')[0]}</span>` : '';
+  const aScore = m.isLive ? `<span class="score-badge">${m.liveScore.split('-')[1]}</span>` : '';
 
-  const oddsHtml = Object.entries(m.odds).map(([label, val]) => {
+  const oddsHtml = Object.entries(m.odds).map(([lbl, val]) => {
     if (!val) return '';
-    const selId = `${m.id}-${label}`;
-    const active = isInSlip(label) ? 'active' : '';
-    const selName = label === '1' ? `${m.home} Win` : label === '2' ? `${m.away} Win` : 'Draw';
-    return `
-      <button class="odd-btn ${active}" id="odd-${selId}"
-        data-match="${m.home} vs ${m.away}"
-        data-market="1X2"
-        data-selection="${selName}"
-        data-odd="${val}"
-        data-id="${selId}"
-        onclick="toggleOdd(this)">
-        <span class="odd-label">${label}</span>
-        <span class="odd-value">${val.toFixed(2)}</span>
-      </button>`;
+    const sid = `${m.id}-${lbl}`;
+    const active = state.slip.some(b => b.id === sid) ? 'active' : '';
+    const sel = lbl === '1' ? `${m.home} Win` : lbl === '2' ? `${m.away} Win` : 'Draw';
+    return `<button class="odd-btn ${active}" id="odd-${sid}"
+      data-id="${sid}" data-match="${m.home} vs ${m.away}"
+      data-market="1X2" data-selection="${sel}" data-odd="${val}"
+      onclick="toggleOdd(this)">
+      <span class="ob-label">${lbl}</span>
+      <span class="ob-val">${val.toFixed(2)}</span>
+    </button>`;
   }).join('');
 
-  return `
-    <div class="match-row">
-      <div class="match-info">
-        ${timeHtml}
-        <div class="match-teams">
-          <span class="match-team">${m.home}${homeScore}</span>
-          <span class="match-team">${m.away}${awayScore}</span>
-        </div>
+  return `<div class="match-row">
+    <div>
+      ${timeHtml}
+      <div class="mr-teams">
+        <span class="mr-team">${m.home}${hScore}</span>
+        <span class="mr-team">${m.away}${aScore}</span>
       </div>
-      <div class="match-odds">
-        ${oddsHtml}
-        <span class="more-markets">+${m.moreCount}</span>
-      </div>
-    </div>`;
+    </div>
+    <div class="mr-odds">${oddsHtml}</div>
+    <span class="more-link">+${m.moreCount}</span>
+  </div>`;
 }
 
-// ── RENDER LIVE MATCHES ────────────────────────────────────────
-function renderLiveMatches() {
-  const container = $('liveMatchesContainer');
-  const html = `
-    <div class="league-group">
-      <div class="league-header">
-        <span class="live-dot"></span>
-        <span class="league-name" style="margin-left:6px">Live Now — ${LIVE_MATCHES.length} matches</span>
+// ── RENDER LIVE ───────────────────────────────────────────────
+function renderLive() {
+  const wrap = $('liveWrap');
+  const rows = LIVE_MATCHES.map(m => {
+    const oddsHtml = Object.entries(m.odds).map(([lbl, val]) => {
+      if (!val) return '';
+      const sid = `${m.id}-${lbl}`;
+      const sel = lbl === '1' ? `${m.home} Win` : lbl === '2' ? `${m.away} Win` : 'Draw';
+      return `<button class="odd-btn" id="odd-${sid}"
+        data-id="${sid}" data-match="${m.home} vs ${m.away}"
+        data-market="1X2 Live" data-selection="${sel}" data-odd="${val}"
+        onclick="toggleOdd(this)">
+        <span class="ob-label">${lbl}</span>
+        <span class="ob-val">${val.toFixed(2)}</span>
+      </button>`;
+    }).join('');
+
+    return `<div class="lg-group">
+      <div class="lg-head">
+        <span class="lg-flag">${m.sport}</span>
+        <span class="lg-name">${m.league}</span>
+        <span class="lg-count is-live" style="color:var(--live-red)">🔴 ${m.minute}</span>
       </div>
       <div class="match-list">
-        ${LIVE_MATCHES.map(m => {
-          const oddsHtml = Object.entries(m.odds).map(([label, val]) => {
-            if (!val) return '';
-            return `
-              <button class="odd-btn" id="odd-${m.id}-${label}"
-                data-match="${m.home} vs ${m.away}"
-                data-market="1X2 (Live)"
-                data-selection="${label === '1' ? m.home + ' Win' : label === '2' ? m.away + ' Win' : 'Draw'}"
-                data-odd="${val}"
-                data-id="${m.id}-${label}"
-                onclick="toggleOdd(this)">
-                <span class="odd-label">${label}</span>
-                <span class="odd-value">${val.toFixed(2)}</span>
-              </button>`;
-          }).join('');
-          return `
-            <div class="match-row">
-              <div class="match-info">
-                <span class="match-time live-time">${m.sport} 🔴 ${m.minute} | ${m.league}</span>
-                <div class="match-teams">
-                  <span class="match-team">${m.home} <span class="live-score">${m.score.split('-')[0]}</span></span>
-                  <span class="match-team">${m.away} <span class="live-score">${m.score.split('-')[1]}</span></span>
-                </div>
-              </div>
-              <div class="match-odds">${oddsHtml}</div>
-            </div>`;
-        }).join('')}
+        <div class="match-row">
+          <div>
+            <div class="mr-teams">
+              <span class="mr-team">${m.home} <span class="score-badge">${m.score.split('-')[0]}</span></span>
+              <span class="mr-team">${m.away} <span class="score-badge">${m.score.split('-')[1]}</span></span>
+            </div>
+          </div>
+          <div class="mr-odds">${oddsHtml}</div>
+          <span class="more-link">+markets</span>
+        </div>
       </div>
     </div>`;
-  container.innerHTML = html;
+  }).join('');
+
+  wrap.innerHTML = `<div style="padding:6px">${rows}</div>`;
 }
 
-// ── RENDER CASINO ──────────────────────────────────────────────
+// ── CASINO / VIRTUAL / PROMOS ─────────────────────────────────
 function renderCasino() {
-  const container = $('casinoGrid');
-  container.innerHTML = CASINO_GAMES.map(g => `
-    <div class="casino-card" onclick="showToast('${g.name} loading...', 'info')">
-      <div class="casino-thumb">
-        <span>${g.icon}</span>
+  $('casinoGrid').innerHTML = CASINO_GAMES.map(g => `
+    <div class="casino-card" onclick="toast('${g.name} — coming soon!','info')">
+      <div class="cc-thumb">
+        <img src="${g.img}" alt="${g.name}" class="cc-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+        <span class="cc-fallback" style="display:none">🎮</span>
       </div>
-      <div class="casino-name">${g.name}${g.hot ? ' 🔥' : ''}</div>
-      <div class="casino-provider">${g.provider}</div>
+      ${g.hot ? '<span class="cc-hot">HOT</span>' : ''}
+      <div class="cc-name">${g.name}</div>
+      <div class="cc-provider">${g.provider}</div>
     </div>`).join('');
 }
 
-// ── RENDER VIRTUAL ─────────────────────────────────────────────
 function renderVirtual() {
-  const container = $('virtualGrid');
-  container.innerHTML = VIRTUAL_SPORTS.map(v => `
-    <div class="virtual-card" onclick="showToast('Opening ${v.name}...', 'info')">
-      <div class="virtual-icon">${v.icon}</div>
-      <div class="virtual-name">${v.name}</div>
-      <div class="virtual-desc">${v.desc}</div>
-      <span class="virtual-badge">${v.badge}</span>
+  $('virtualGrid').innerHTML = VIRTUAL_SPORTS.map(v => `
+    <div class="virt-card" onclick="toast('Opening ${v.name}…','info')">
+      <div class="vc-thumb">
+        <img src="${v.img}" alt="${v.name}" class="vc-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+        <span class="vc-fallback" style="display:none">⚽</span>
+      </div>
+      <div class="vc-name">${v.name}</div>
+      <div class="vc-desc">${v.desc}</div>
+      <span class="vc-live">${v.badge}</span>
     </div>`).join('');
 }
 
-// ── RENDER RESULTS ─────────────────────────────────────────────
-function renderResults() {
-  const container = $('resultsContainer');
-  container.innerHTML = RECENT_RESULTS.map(r => `
-    <div class="result-row">
-      <div class="result-home">${r.home}</div>
-      <div class="result-score">${r.score}</div>
-      <div class="result-away">${r.away}</div>
-      <div class="result-time">${r.time}<br><small style="color:var(--text-secondary)">${r.league}</small></div>
-    </div>`).join('');
-}
-
-// ── RENDER PROMOS ──────────────────────────────────────────────
 function renderPromos() {
-  const container = $('promosGrid');
-  container.innerHTML = PROMOTIONS.map(p => `
+  $('promosGrid').innerHTML = PROMOTIONS.map(p => `
     <div class="promo-card">
-      <div class="promo-banner-img">${p.icon}</div>
-      <div class="promo-card-body">
-        <div class="promo-card-title">${p.title}</div>
-        <div class="promo-card-desc">${p.desc}</div>
-        <button class="promo-card-btn" onclick="handlePromo('${p.id}')">${p.cta}</button>
+      <div class="pc-banner">${p.icon}</div>
+      <div class="pc-body">
+        <div class="pc-title">${p.title}</div>
+        <div class="pc-desc">${p.desc}</div>
+        <button class="pc-btn">${p.cta}</button>
       </div>
     </div>`).join('');
 }
 
-// ── ODD TOGGLE (Add/Remove from Bet Slip) ─────────────────────
+// ── ODD TOGGLE ────────────────────────────────────────────────
 function toggleOdd(btn) {
   const id = btn.dataset.id;
-  const existing = state.betSlip.findIndex(b => b.id === id);
+  const idx = state.slip.findIndex(b => b.id === id);
 
-  if (existing !== -1) {
-    state.betSlip.splice(existing, 1);
+  if (idx !== -1) {
+    state.slip.splice(idx, 1);
     btn.classList.remove('active');
-    showToast('Selection removed.', 'info');
+    toast('Selection removed', 'info');
   } else {
-    // Remove any other selection for the same match
     const matchName = btn.dataset.match;
-    state.betSlip = state.betSlip.filter(b => b.match !== matchName);
-    // Deactivate other buttons for this match
+    state.slip = state.slip.filter(b => b.match !== matchName);
     $$(`[data-match="${matchName}"]`).forEach(b => b.classList.remove('active'));
 
-    state.betSlip.push({
-      id,
-      match: btn.dataset.match,
+    state.slip.push({
+      id, match: matchName,
       market: btn.dataset.market,
       selection: btn.dataset.selection,
       odd: parseFloat(btn.dataset.odd)
     });
     btn.classList.add('active');
-    showToast(`${btn.dataset.selection} @ ${btn.dataset.odd} added!`, 'success');
+    toast(`${btn.dataset.selection} @ ${btn.dataset.odd} added`, 'ok');
   }
-
-  renderBetSlip();
+  renderSlip();
 }
 
-// ── RENDER BET SLIP ────────────────────────────────────────────
-function renderBetSlip() {
-  const selectionsEl = $('betSelections');
-  const emptySlip = $('emptySlip');
-  const footer = $('betslipFooter');
-  const count = state.betSlip.length;
+// ── RENDER BET SLIP ───────────────────────────────────────────
+function renderSlip() {
+  const body = $('bsBody');
+  const footer = $('bsFooter');
+  const count = state.slip.length;
+  $('bsCount').textContent = count;
 
-  $('slipCount').textContent = count;
-
-  if (count === 0) {
-    selectionsEl.innerHTML = `
-      <div class="empty-slip" id="emptySlip">
-        <div class="empty-icon">🎯</div>
-        <p>Your bet slip is empty.</p>
-        <p class="empty-hint">Click on odds to add selections.</p>
-      </div>`;
+  if (!count) {
+    body.innerHTML = `<div class="bs-empty" id="bsEmpty">
+      <div class="bse-icon">🎯</div>
+      <p>Your betslip is empty</p>
+      <small>Click on odds to add selections</small>
+    </div>`;
     footer.style.display = 'none';
     return;
   }
 
   footer.style.display = 'block';
-
-  const selHtml = state.betSlip.map(b => `
-    <div class="bet-selection">
-      <div class="selection-match">${b.match}</div>
-      <div class="selection-pick">${b.selection}</div>
-      <div class="selection-market">${b.market}</div>
-      <span class="selection-odd">${b.odd.toFixed(2)}</span>
-      <button class="selection-remove" onclick="removeSelection('${b.id}')" title="Remove">×</button>
+  body.innerHTML = state.slip.map(b => `
+    <div class="sel-card">
+      <div class="sel-match">${b.match}</div>
+      <div class="sel-pick">${b.selection}</div>
+      <div class="sel-mkt">${b.market}</div>
+      <span class="sel-odd">${b.odd.toFixed(2)}</span>
+      <button class="sel-rm" onclick="removeFromSlip('${b.id}')">✕</button>
     </div>`).join('');
 
-  selectionsEl.innerHTML = selHtml;
-  updateBetSummary();
+  recalc();
 }
 
-function removeSelection(id) {
-  state.betSlip = state.betSlip.filter(b => b.id !== id);
-  // Deactivate the button
+function removeFromSlip(id) {
+  state.slip = state.slip.filter(b => b.id !== id);
   const btn = document.querySelector(`[data-id="${id}"]`);
   if (btn) btn.classList.remove('active');
-  renderBetSlip();
-  showToast('Selection removed.', 'info');
+  renderSlip();
 }
 
-function updateBetSummary() {
+function recalc() {
   const stake = parseFloat($('stakeInput')?.value || 0);
-  const totalOdds = state.betSlip.reduce((acc, b) => acc * b.odd, 1);
-  const potentialWin = stake > 0 ? (stake * totalOdds).toFixed(2) : '0.00';
-
-  const totalOddsEl = $('totalOdds');
-  const potWinEl = $('potentialWin');
-  if (totalOddsEl) totalOddsEl.textContent = totalOdds.toFixed(2);
-  if (potWinEl) potWinEl.textContent = `GH₵ ${parseFloat(potentialWin).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`;
+  const totalOdds = state.slip.reduce((a, b) => a * b.odd, 1);
+  const win = stake > 0 ? stake * totalOdds : 0;
+  const el = $('totalOdds');
+  const we = $('potWin');
+  if (el) el.textContent = totalOdds.toFixed(2);
+  if (we) we.textContent = `GH₵ ${win.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`;
 }
 
-// ── PLACE BET ──────────────────────────────────────────────────
+// ── PLACE BET ─────────────────────────────────────────────────
 function placeBet() {
   const stake = parseFloat($('stakeInput').value);
-  if (!stake || stake < 1) { showToast('Minimum stake is GH₵1.', 'error'); return; }
-  if (stake > state.balance) { showToast('Insufficient balance!', 'error'); return; }
-  if (state.betSlip.length === 0) { showToast('Add selections to your bet slip.', 'error'); return; }
+  if (!stake || stake < 1) { toast('Minimum stake is GH₵1', 'err'); return; }
+  if (stake > state.balance) { toast('Insufficient balance!', 'err'); return; }
+  if (!state.slip.length) { toast('Add selections first', 'err'); return; }
 
-  const totalOdds = state.betSlip.reduce((acc, b) => acc * b.odd, 1);
-  const potentialWin = (stake * totalOdds).toFixed(2);
-  const betId = 'BET-' + Date.now().toString(36).toUpperCase();
+  const odds = state.slip.reduce((a, b) => a * b.odd, 1);
+  const win = (stake * odds).toFixed(2);
+  const id = 'SB-' + Date.now().toString(36).toUpperCase();
 
-  const bet = {
-    id: betId,
-    stake,
-    totalOdds: totalOdds.toFixed(2),
-    potentialWin,
-    selections: [...state.betSlip],
-    status: 'pending',
-    time: new Date().toLocaleTimeString()
-  };
-
-  state.placedBets.unshift(bet);
+  state.bets.unshift({ id, stake, odds: odds.toFixed(2), win, status: 'pending', selections: [...state.slip] });
   state.balance -= stake;
   updateBalance();
 
-  // Clear slip
-  state.betSlip.forEach(b => {
+  state.slip.forEach(b => {
     const btn = document.querySelector(`[data-id="${b.id}"]`);
     if (btn) btn.classList.remove('active');
   });
-  state.betSlip = [];
+  state.slip = [];
   $('stakeInput').value = '';
-  renderBetSlip();
-  renderMyBets();
+  renderSlip();
+  renderOpenBets();
 
-  // Show confirmation modal
-  $('betRef').textContent = betId;
-  $('betConfirmText').textContent = `Stake: GH₵${stake} | Potential Win: GH₵${parseFloat(potentialWin).toLocaleString()}`;
-  openModal('betConfirmModal');
-
-  showToast('Bet placed successfully! 🎉', 'success');
+  $('betOkId').textContent = id;
+  $('betOkMsg').textContent = `Stake: GH₵${stake} · Odds: ${odds.toFixed(2)} · Potential win: GH₵${parseFloat(win).toLocaleString()}`;
+  openModal('modalBetOk');
 }
 
-// ── MY BETS ────────────────────────────────────────────────────
-function renderMyBets() {
-  const container = $('myBetsList');
-  $('myBetsCount').textContent = state.placedBets.length;
-
-  if (!state.placedBets.length) {
-    container.innerHTML = '<p class="no-bets">No bets placed yet.</p>';
-    return;
-  }
-
-  container.innerHTML = state.placedBets.slice(0, 5).map(b => {
-    const statusClass = `status-${b.status}`;
-    const statusLabel = b.status === 'pending' ? '⏳ Pending' : b.status === 'won' ? '✅ Won' : '❌ Lost';
-    return `
-      <div class="my-bet-item">
-        <div class="bet-item-header">
-          <span class="bet-item-id">${b.id}</span>
-          <span class="bet-item-status ${statusClass}">${statusLabel}</span>
-        </div>
-        <div>Stake: <strong>GH₵${b.stake}</strong> | Odds: <strong>${b.totalOdds}</strong></div>
-        <div style="color:var(--primary-light);font-size:0.7rem">Win: GH₵${parseFloat(b.potentialWin).toLocaleString()}</div>
-      </div>`;
-  }).join('');
+// ── OPEN BETS ─────────────────────────────────────────────────
+function renderOpenBets() {
+  const list = $('obList');
+  $('obCount').textContent = state.bets.length;
+  if (!state.bets.length) { list.innerHTML = '<p class="no-bets">No open bets</p>'; return; }
+  list.innerHTML = state.bets.slice(0, 5).map(b => `
+    <div class="obet">
+      <div class="obet-top">
+        <span class="obet-id">${b.id}</span>
+        <span class="st-${b.status}">${b.status === 'pending' ? '⏳ Pending' : b.status === 'won' ? '✅ Won' : '❌ Lost'}</span>
+      </div>
+      <div>GH₵${b.stake} · Odds ${b.odds}</div>
+      <div style="color:var(--green-odd-a);font-size:.68rem">Win: GH₵${parseFloat(b.win).toLocaleString()}</div>
+    </div>`).join('');
 }
 
-// ── BALANCE ────────────────────────────────────────────────────
+// ── BALANCE ───────────────────────────────────────────────────
 function updateBalance() {
-  $('balanceAmount').textContent = `GH₵ ${state.balance.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`;
+  $('balVal').textContent = `GH₵ ${state.balance.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`;
 }
 
-// ── NAVIGATION ─────────────────────────────────────────────────
-function switchSection(section) {
-  state.activeSection = section;
-  $$('.content-section').forEach(s => s.classList.remove('active'));
-  const target = $(`section-${section}`);
-  if (target) target.classList.add('active');
-
-  $$('.nav-link').forEach(l => {
-    l.classList.toggle('active', l.dataset.section === section);
-  });
+// ── SECTION SWITCH ────────────────────────────────────────────
+function switchSection(sec) {
+  state.section = sec;
+  $$('.pg').forEach(p => p.classList.remove('active'));
+  const pg = $(`pg-${sec}`);
+  if (pg) pg.classList.add('active');
+  $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === sec));
 }
 
 function switchSport(sport) {
-  state.activeSport = sport;
-  $$('.sport-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.sport === sport);
-  });
-  renderMatches(state.activeFilter);
+  state.sport = sport;
+  $$('.sn-item').forEach(i => i.classList.toggle('active', i.dataset.sport === sport));
+  renderMatches(state.filter);
+  switchSection('sports');
 }
 
-function toggleLeague(header) {
-  header.classList.toggle('collapsed');
-  const list = header.nextElementSibling;
-  if (list) {
-    list.style.display = header.classList.contains('collapsed') ? 'none' : 'block';
-  }
+function toggleLeague(hd) {
+  hd.classList.toggle('shut');
+  const list = hd.nextElementSibling;
+  if (list) list.classList.toggle('hidden');
 }
 
-// ── MODALS ─────────────────────────────────────────────────────
-function openModal(id) {
-  const modal = $(id);
-  if (modal) { modal.classList.add('open'); }
+// ── MODALS ────────────────────────────────────────────────────
+function openModal(id) { const m = $(id); if (m) m.classList.add('open'); }
+function closeModal(id) { const m = $(id); if (m) m.classList.remove('open'); }
+
+// ── TOAST ─────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  let wrap = document.querySelector('.toast-wrap');
+  if (!wrap) { wrap = document.createElement('div'); wrap.className = 'toast-wrap'; document.body.appendChild(wrap); }
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 3000);
 }
 
-function closeModal(id) {
-  const modal = $(id);
-  if (modal) modal.classList.remove('open');
-}
-
-// ── TOAST ──────────────────────────────────────────────────────
-function showToast(message, type = 'info') {
-  let container = document.querySelector('.toast-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.className = 'toast-container';
-    document.body.appendChild(container);
-  }
-
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.classList.add('out');
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
-}
-
-// ── JACKPOT COUNTDOWN ──────────────────────────────────────────
-function startJackpotCountdown() {
-  const el = $('jackpotCountdown');
+// ── CLOCK ─────────────────────────────────────────────────────
+function tickClock() {
+  const el = $('topTime');
   if (!el) return;
+  const update = () => { el.textContent = new Date().toLocaleTimeString('en-GH'); };
+  update();
+  setInterval(update, 1000);
+}
 
+// ── JACKPOT COUNTDOWN ─────────────────────────────────────────
+function tickJackpot() {
+  const el = $('jpCd');
+  if (!el) return;
   setInterval(() => {
-    if (state.jackpotSeconds > 0) state.jackpotSeconds--;
-    const h = Math.floor(state.jackpotSeconds / 3600);
-    const m = Math.floor((state.jackpotSeconds % 3600) / 60);
-    const s = state.jackpotSeconds % 60;
-    el.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    if (state.jpSecs > 0) state.jpSecs--;
+    const h = Math.floor(state.jpSecs / 3600);
+    const m = Math.floor((state.jpSecs % 3600) / 60);
+    const s = state.jpSecs % 60;
+    el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }, 1000);
 }
 
-// ── SIMULATED LIVE ODDS FLICKER ────────────────────────────────
-function startLiveOddsFlicker() {
+// ── LIVE ODDS FLICKER ─────────────────────────────────────────
+function flickerOdds() {
   setInterval(() => {
-    const allOddBtns = $$('.odd-btn:not(.active)');
-    if (!allOddBtns.length) return;
-
-    const btn = allOddBtns[Math.floor(Math.random() * allOddBtns.length)];
-    const currentVal = parseFloat(btn.querySelector('.odd-value')?.textContent || '0');
-    if (!currentVal) return;
-
-    const delta = (Math.random() - 0.5) * 0.1;
-    const newVal = Math.max(1.01, currentVal + delta);
-    const direction = delta > 0 ? 'up' : 'down';
-
-    const valEl = btn.querySelector('.odd-value');
-    if (valEl) {
-      valEl.textContent = newVal.toFixed(2);
-      btn.classList.remove('flash-up', 'flash-down', 'price-up', 'price-down');
-      btn.classList.add(`flash-${direction}`, `price-${direction}`);
-      setTimeout(() => {
-        btn.classList.remove('flash-up', 'flash-down', 'price-up', 'price-down');
-      }, 800);
-
-      // Update in-memory data too
-      if (btn.dataset.odd) btn.dataset.odd = newVal.toFixed(2);
-    }
-  }, 2500);
+    const btns = Array.from($$('.odd-btn:not(.active)'));
+    if (!btns.length) return;
+    const btn = btns[Math.floor(Math.random() * btns.length)];
+    const valEl = btn.querySelector('.ob-val');
+    if (!valEl) return;
+    const cur = parseFloat(valEl.textContent);
+    if (!cur) return;
+    const delta = (Math.random() - 0.5) * 0.08;
+    const nv = Math.max(1.01, cur + delta);
+    valEl.textContent = nv.toFixed(2);
+    const dir = delta > 0 ? 'up' : 'dn';
+    btn.classList.remove('up','dn','flash-up','flash-dn');
+    btn.classList.add(dir, `flash-${dir}`);
+    if (btn.dataset.odd) btn.dataset.odd = nv.toFixed(2);
+    setTimeout(() => btn.classList.remove('up','dn','flash-up','flash-dn'), 800);
+  }, 2200);
 }
 
-// ── DEPOSIT SIMULATION ─────────────────────────────────────────
-function handleDeposit() {
-  const amount = parseFloat($('depositAmount')?.value);
-  if (!amount || amount < 10) { showToast('Minimum deposit is GH₵10.', 'error'); return; }
-  state.balance += amount;
-  updateBalance();
-  closeModal('depositModal');
-  showToast(`GH₵${amount.toLocaleString()} deposited successfully! 🎉`, 'success');
-  $('depositAmount').value = '';
-}
-
-// ── LOGIN SIMULATION ───────────────────────────────────────────
-function handleLogin() {
-  const user = $('loginUser')?.value.trim();
-  const pass = $('loginPass')?.value.trim();
-  if (!user || !pass) { showToast('Please enter credentials.', 'error'); return; }
-  state.loggedIn = true;
-  closeModal('loginModal');
-  showToast(`Welcome back! 👋`, 'success');
-}
-
-function handleRegister() {
-  const name = $('regName')?.value.trim();
-  const phone = $('regPhone')?.value.trim();
-  const pass = $('regPass')?.value.trim();
-  const terms = $('regTerms')?.checked;
-  if (!name || !phone || !pass) { showToast('Please fill in all required fields.', 'error'); return; }
-  if (!terms) { showToast('Please accept the Terms & Conditions.', 'error'); return; }
-  state.loggedIn = true;
-  closeModal('registerModal');
-  showToast(`Account created! Welcome, ${name}! 🎉`, 'success');
-}
-
-function handlePromo(id) {
-  openModal('loginModal');
-  showToast('Log in to claim this promotion!', 'info');
-}
-
-// ── BIND EVENTS ────────────────────────────────────────────────
-function bindEvents() {
-  // Promo banner close
-  $('promoClose')?.addEventListener('click', () => {
-    $('promoBanner').style.display = 'none';
-  });
+// ── BIND ALL ──────────────────────────────────────────────────
+function bindAll() {
+  // Promo strip close
+  $('psClose')?.addEventListener('click', () => { $('promoStrip').style.display = 'none'; });
 
   // Nav links
-  $$('.nav-link').forEach(link => {
-    link.addEventListener('click', e => {
-      e.preventDefault();
-      switchSection(link.dataset.section);
-    });
+  $$('.nav-item').forEach(n => {
+    n.addEventListener('click', e => { e.preventDefault(); switchSection(n.dataset.section); });
   });
 
-  // Sport list
-  $$('.sport-item').forEach(item => {
-    item.addEventListener('click', () => {
-      switchSection('sports');
-      switchSport(item.dataset.sport);
-    });
+  // Sport nav
+  $$('.sn-item').forEach(i => {
+    i.addEventListener('click', () => switchSport(i.dataset.sport));
   });
 
-  // Filter tabs
-  $$('.filter-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      $$('.filter-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      state.activeFilter = tab.dataset.filter;
-      renderMatches(state.activeFilter);
+  // Filter pills
+  $$('.fpill').forEach(p => {
+    p.addEventListener('click', () => {
+      $$('.fpill').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      state.filter = p.dataset.filter;
+      renderMatches(state.filter);
     });
   });
 
   // Bet slip tabs
-  $$('.slip-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      $$('.slip-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      state.activeSlipType = tab.dataset.type;
+  $$('.bs-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      $$('.bs-tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
     });
   });
 
-  // Stake input
-  $('stakeInput')?.addEventListener('input', updateBetSummary);
-
-  // Quick stake buttons
-  $$('.quick-stake').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const input = $('stakeInput');
-      if (input) {
-        input.value = btn.dataset.amount;
-        updateBetSummary();
-      }
-    });
+  // Stake input + quick amounts
+  $('stakeInput')?.addEventListener('input', recalc);
+  $$('.qa').forEach(b => {
+    b.addEventListener('click', () => { $('stakeInput').value = b.dataset.a; recalc(); });
   });
 
   // Place bet
   $('placeBetBtn')?.addEventListener('click', placeBet);
 
   // Clear slip
-  $('clearSlip')?.addEventListener('click', () => {
-    state.betSlip.forEach(b => {
-      const btn = document.querySelector(`[data-id="${b.id}"]`);
-      if (btn) btn.classList.remove('active');
-    });
-    state.betSlip = [];
-    renderBetSlip();
-    showToast('Bet slip cleared.', 'info');
+  $('bsTrash')?.addEventListener('click', () => {
+    state.slip.forEach(b => { const btn = document.querySelector(`[data-id="${b.id}"]`); if (btn) btn.classList.remove('active'); });
+    state.slip = [];
+    renderSlip();
+    toast('Bet slip cleared', 'info');
   });
 
-  // Modal open buttons
-  $('depositBtn')?.addEventListener('click', () => openModal('depositModal'));
-  $('loginBtn')?.addEventListener('click', () => openModal('loginModal'));
-  $('registerBtn')?.addEventListener('click', () => openModal('registerModal'));
+  // Header buttons → modals
+  $('depositBtn')?.addEventListener('click', () => openModal('modalDeposit'));
+  $('loginBtn')?.addEventListener('click',   () => openModal('modalLogin'));
+  $('joinBtn')?.addEventListener('click',    () => openModal('modalJoin'));
 
   // Modal close buttons
-  $$('.modal-close').forEach(btn => {
-    btn.addEventListener('click', () => closeModal(btn.dataset.modal));
-  });
+  $$('.modal-x').forEach(b => b.addEventListener('click', () => closeModal(b.dataset.close)));
+  $$('.modal-bg').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); }));
 
-  // Modal overlays close on background click
-  $$('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => {
-      if (e.target === overlay) closeModal(overlay.id);
-    });
-  });
+  // Switch between login/join
+  $('toJoin')?.addEventListener('click', e => { e.preventDefault(); closeModal('modalLogin'); openModal('modalJoin'); });
+  $('toLogin')?.addEventListener('click', e => { e.preventDefault(); closeModal('modalJoin'); openModal('modalLogin'); });
 
   // Deposit confirm
-  $('confirmDeposit')?.addEventListener('click', handleDeposit);
-
-  // Login/Register confirm
-  $('confirmLogin')?.addEventListener('click', handleLogin);
-  $('confirmRegister')?.addEventListener('click', handleRegister);
-
-  // Switch between login/register modals
-  $('switchToRegister')?.addEventListener('click', e => {
-    e.preventDefault();
-    closeModal('loginModal');
-    openModal('registerModal');
-  });
-  $('switchToLogin')?.addEventListener('click', e => {
-    e.preventDefault();
-    closeModal('registerModal');
-    openModal('loginModal');
+  $('doDeposit')?.addEventListener('click', () => {
+    const amt = parseFloat($('depAmt')?.value);
+    if (!amt || amt < 20) { toast('Minimum deposit is GH₵20', 'err'); return; }
+    state.balance += amt;
+    updateBalance();
+    closeModal('modalDeposit');
+    $('depAmt').value = '';
+    toast(`GH₵${amt.toLocaleString()} deposited! 🎉`, 'ok');
   });
 
-  // Payment methods
-  $$('.pay-method').forEach(btn => {
-    btn.addEventListener('click', () => {
-      $$('.pay-method').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+  // Login confirm
+  $('doLogin')?.addEventListener('click', () => {
+    const u = $('lgUser')?.value.trim();
+    const p = $('lgPass')?.value.trim();
+    if (!u || !p) { toast('Please fill in all fields', 'err'); return; }
+    closeModal('modalLogin');
+    toast('Welcome back! 👋', 'ok');
+  });
+
+  // Join confirm
+  $('doJoin')?.addEventListener('click', () => {
+    const name = $('rgName')?.value.trim();
+    const phone = $('rgPhone')?.value.trim();
+    const terms = $('rgTerms')?.checked;
+    if (!name || !phone) { toast('Please fill in all required fields', 'err'); return; }
+    if (!terms) { toast('Please accept the Terms & Conditions', 'err'); return; }
+    closeModal('modalJoin');
+    toast(`Welcome, ${name}! Account created 🎉`, 'ok');
+  });
+
+  // Pay method tabs
+  $$('.ptab').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('.ptab').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
     });
   });
 
-  // Featured match odds
-  $$('.feat-odd').forEach(btn => {
-    btn.addEventListener('click', () => toggleOdd(btn));
-  });
+  // Hero odds
+  $$('.hero-odds .odd-btn').forEach(b => b.addEventListener('click', () => toggleOdd(b)));
 
-  // Market select
-  $('marketSelect')?.addEventListener('change', e => {
-    state.activeMarket = e.target.value;
-    showToast(`Market switched to ${e.target.options[e.target.selectedIndex].text}`, 'info');
-  });
+  // Hamburger mobile toggle
+  $('hamburger')?.addEventListener('click', () => $('leftPanel')?.classList.toggle('open'));
 
-  // Mobile menu toggle
-  $('menuToggle')?.addEventListener('click', () => {
-    $('sidebarLeft')?.classList.toggle('open');
-  });
-
-  // Keyboard shortcut: Escape closes modals
+  // Escape key closes modals
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      $$('.modal-overlay.open').forEach(m => m.classList.remove('open'));
-    }
+    if (e.key === 'Escape') $$('.modal-bg.open').forEach(m => m.classList.remove('open'));
   });
 }

@@ -202,27 +202,36 @@ const LIVE_MATCHES = [
 ];
 
 const CASINO_GAMES = [
-  { id: "c001", name: "Aviator", icon: "✈️", provider: "Spribe", hot: true },
-  { id: "c002", name: "Book of Dead", icon: "📖", provider: "Play'n GO", hot: false },
-  { id: "c003", name: "Gates of Olympus", icon: "⚡", provider: "Pragmatic Play", hot: true },
-  { id: "c004", name: "Sweet Bonanza", icon: "🍬", provider: "Pragmatic Play", hot: false },
-  { id: "c005", name: "Wolf Gold", icon: "🐺", provider: "Pragmatic Play", hot: false },
-  { id: "c006", name: "Starburst", icon: "⭐", provider: "NetEnt", hot: false },
-  { id: "c007", name: "Mega Moolah", icon: "🦁", provider: "Microgaming", hot: false },
-  { id: "c008", name: "Gonzo's Quest", icon: "🗺️", provider: "NetEnt", hot: false },
-  { id: "c009", name: "Age of Gods", icon: "🏛️", provider: "Playtech", hot: false },
-  { id: "c010", name: "Lightning Roulette", icon: "⚡🎰", provider: "Evolution", hot: true },
-  { id: "c011", name: "Live Blackjack", icon: "🃏", provider: "Evolution", hot: false },
-  { id: "c012", name: "Crazy Time", icon: "🎡", provider: "Evolution", hot: true }
+  { id: "c001", name: "Aviator",         img: "https://s.sporty.net/sportygames/lobby_banner/1648540402134.png",                    provider: "Turbo Games", hot: true  },
+  { id: "c002", name: "Sporty Hero",     img: "https://s.sporty.net/common/main/res/5c244dd872207dc67f92cb35b8cef7c3.png",          provider: "SportyGames", hot: true  },
+  { id: "c003", name: "Sporty Roulette", img: "https://s.sporty.net/common/main/res/ca11c6474c3756ad3acfdeaa9ac276ec.png",           provider: "SportyGames", hot: false },
+  { id: "c004", name: "Plinko",          img: "https://s.sporty.net/sportygames/lobby_banner/1648540347199.png",                    provider: "Turbo Games", hot: false },
+  { id: "c005", name: "Mines",           img: "https://s.sporty.net/sportygames/lobby_banner/1648540320127.png",                    provider: "Turbo Games", hot: false },
+  { id: "c006", name: "Dice",            img: "https://s.sporty.net/sportygames/lobby_banner/1648540432033.png",                    provider: "Turbo Games", hot: false },
+  { id: "c007", name: "Goal",            img: "https://s.sporty.net/sportygames/lobby_banner/1648540376516.png",                    provider: "Turbo Games", hot: false },
+  { id: "c008", name: "Spin Da' Bottle", img: "https://s.sporty.net/common/main/res/1fb1f9ff6d8417c80ebc28cef92bf970.png",          provider: "SportyGames", hot: false },
+  { id: "c009", name: "Flip da' Coin",   img: "https://s.sporty.net/common/main/res/f3b49680d2856abd798c1b1e250bd694.png",          provider: "SportyGames", hot: false },
+  { id: "c010", name: "Red-Black",       img: "https://s.sporty.net/common/main/res/f9b5f1e24b0dc17d8799444dabe5e64a.png",          provider: "SportyGames", hot: false },
+  { id: "c011", name: "Even Odd",        img: "https://s.sporty.net/common/main/res/8519527ffb72789a3c12cccd14d42df3.png",          provider: "SportyGames", hot: false },
+  { id: "c012", name: "Sporty Hi-Lo",    img: "https://s.sporty.net/common/main/res/d6b60715735e5d9e675b9383bab81781.png",          provider: "SportyGames", hot: false },
+  { id: "c013", name: "Spin2Win",        img: "https://s.sporty.net/common/main/res/c06e43c4253d1430260607f8f0e815c2.png",          provider: "SportyGames", hot: false },
+  { id: "c014", name: "Blackjack",       img: "https://s.sporty.net/common/main/res/53dcdd528c8b5b0e74164af4173d4b8.png",           provider: "SportyGames", hot: false },
+  { id: "c015", name: "SicBo",           img: "https://s.sporty.net/common/main/res/ab40d7945054629add00863b6cfdb0e0.png",          provider: "SportyGames", hot: false },
+  { id: "c016", name: "Sporty Soccer",   img: "https://s.sporty.net/common/main/res/6a1e28f108a1a24a780943d36f683967.png",          provider: "SportyGames", hot: false },
+  { id: "c017", name: "Lucky Goal",      img: "https://s.sporty.net/common/main/res/bcb8945eb76155757bdad51c29912816.png",          provider: "SportyGames", hot: false },
+  { id: "c018", name: "Mini Roulette",   img: "https://s.sporty.net/sportygames/lobby_banner/1648540232060.png",                    provider: "Turbo Games", hot: false },
+  { id: "c019", name: "Turbo Hi-Lo",     img: "https://s.sporty.net/sportygames/lobby_banner/1648540291968.png",                    provider: "Turbo Games", hot: false },
+  { id: "c020", name: "Lucky Numbers",   img: "https://s.sporty.net/cms/game_lobby_banner_num_0ad1b6c20c.png",                      provider: "SportyGames", hot: true  },
+  { id: "c021", name: "Lucky Poker",     img: "https://s.sporty.net/gh/ms/spr_game_poker.png",                                     provider: "SportyGames", hot: false },
+  { id: "c022", name: "Turbo Keno",      img: "https://s.sporty.net/sportygames/lobby_banner/1648540266057.png",                    provider: "Turbo Games", hot: false },
 ];
 
 const VIRTUAL_SPORTS = [
-  { id: "v001", name: "Virtual Football", icon: "⚽", desc: "Every 3 minutes", badge: "LIVE" },
-  { id: "v002", name: "Virtual Horse Racing", icon: "🐎", desc: "Every 4 minutes", badge: "LIVE" },
-  { id: "v003", name: "Virtual Dog Racing", icon: "🐕", desc: "Every 3 minutes", badge: "LIVE" },
-  { id: "v004", name: "Virtual Cycling", icon: "🚴", desc: "Every 5 minutes", badge: "UPCOMING" },
-  { id: "v005", name: "Virtual Tennis", icon: "🎾", desc: "Every 6 minutes", badge: "LIVE" },
-  { id: "v006", name: "Virtual Basketball", icon: "🏀", desc: "Every 5 minutes", badge: "UPCOMING" }
+  { id: "v001", name: "Instant Virtuals",    img: "https://s.sporty.net/ke/main/res/20259a083389d1c732a19b81a86ed363.png", desc: "Every 3 minutes",  badge: "LIVE" },
+  { id: "v002", name: "Sporty SIM",          img: "https://s.sporty.net/cms/SIM_f35ab52fe3.png",                          desc: "Simulated league", badge: "LIVE" },
+  { id: "v003", name: "vFootball",           img: "https://s.sporty.net/cms/v_Football_3e1a145b06.png",                   desc: "Every 4 minutes",  badge: "LIVE" },
+  { id: "v004", name: "Golden Virtuals",     img: "https://s.sporty.net/ke/main/res/a9ec8f26dcccd14b136ec0c56ed1f782.png",desc: "Multiple sports",  badge: "LIVE" },
+  { id: "v005", name: "Scheduled Virtuals",  img: "https://s.sporty.net/ke/main/res/5724bedc1f3ce90aeb5e9fc0dfb0f67d.png",desc: "Fixed schedule",   badge: "UPCOMING" },
 ];
 
 const RECENT_RESULTS = [

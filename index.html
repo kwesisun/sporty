@@ -3,499 +3,461 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SportyWin - Your #1 Sports Betting Platform</title>
+  <title>SportyBet Ghana - Online Sports Betting &amp; Live Odds</title>
+  <link rel="shortcut icon" href="//s.sporty.net/global/main/logo/favicon.ico" />
   <link rel="stylesheet" href="css/styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
 
-  <!-- TOP HEADER -->
-  <header class="top-header">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="top-bar-inner">
+      <div class="top-bar-left">
+        <span>🇬🇭 Ghana</span>
+        <span class="separator">|</span>
+        <a href="#">Help</a>
+        <a href="#">Responsible Gambling</a>
+      </div>
+      <div class="top-bar-right">
+        <span class="top-time" id="topTime"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN HEADER -->
+  <header class="main-header">
     <div class="header-inner">
       <div class="header-left">
-        <button class="menu-toggle" id="menuToggle" aria-label="Menu">
+        <button class="hamburger" id="hamburger">
           <span></span><span></span><span></span>
         </button>
-        <a href="#" class="logo">
-          <span class="logo-icon">SW</span>
-          <span class="logo-text">SportyWin</span>
+        <a href="#" class="logo-wrap">
+          <img src="//s.sporty.net/global/main/modules/main/desktop/common/core/image/shortLogo.b1043a3f67.png" alt="SportyBet" class="logo-img" />
+          <span class="logo-label">SportyBet</span>
         </a>
-        <nav class="main-nav" id="mainNav">
-          <a href="#" class="nav-link active" data-section="sports">Sports</a>
-          <a href="#" class="nav-link live-link" data-section="live">
-            <span class="live-dot"></span>Live
-          </a>
-          <a href="#" class="nav-link" data-section="casino">Casino</a>
-          <a href="#" class="nav-link" data-section="virtual">Virtual</a>
-          <a href="#" class="nav-link" data-section="results">Results</a>
-          <a href="#" class="nav-link promo-link" data-section="promos">Promotions</a>
-        </nav>
       </div>
+
+      <nav class="main-nav" id="mainNav">
+        <a class="nav-item active" data-section="sports" href="#">
+          <span class="nav-icon">⚽</span>Sports
+        </a>
+        <a class="nav-item live-nav" data-section="live" href="#">
+          <span class="live-pip"></span>Live
+        </a>
+        <a class="nav-item" data-section="casino" href="#">🎰 Casino</a>
+        <a class="nav-item" data-section="virtual" href="#">🎮 Virtual</a>
+        <a class="nav-item" data-section="jackpot" href="#">🏆 Jackpot</a>
+        <a class="nav-item promo-nav" data-section="promos" href="#">🎁 Promotions</a>
+      </nav>
+
       <div class="header-right">
-        <div class="balance-display" id="balanceDisplay">
-          <span class="balance-label">Balance</span>
-          <span class="balance-amount" id="balanceAmount">GH₵ 5,000.00</span>
+        <div class="bal-box" id="balBox">
+          <span class="bal-label">Balance</span>
+          <span class="bal-val" id="balVal">GH₵ 5,000.00</span>
         </div>
-        <button class="btn btn-deposit" id="depositBtn">Deposit</button>
-        <button class="btn btn-login" id="loginBtn">Login</button>
-        <button class="btn btn-register" id="registerBtn">Register</button>
+        <button class="btn-deposit" id="depositBtn">+ Deposit</button>
+        <button class="btn-login" id="loginBtn">Login</button>
+        <button class="btn-join" id="joinBtn">Join Now</button>
       </div>
     </div>
   </header>
 
-  <!-- PROMO BANNER -->
-  <div class="promo-banner" id="promoBanner">
-    <div class="promo-inner">
-      <span class="promo-tag">🎁 WELCOME BONUS</span>
-      <span class="promo-text">Deposit GH₵50 and get GH₵100 FREE! Use code: <strong>WIN100</strong></span>
-      <button class="promo-close" id="promoClose">×</button>
+  <!-- PROMO STRIP -->
+  <div class="promo-strip" id="promoStrip">
+    <div class="promo-strip-inner">
+      <span class="ps-tag">NEW MEMBER</span>
+      <span class="ps-text">Get <strong>GH₵ 100 Free Bet</strong> on your first deposit of GH₵ 20 or more &nbsp;·&nbsp; Code: <strong>SB100</strong></span>
+      <button class="ps-close" id="psClose">✕</button>
     </div>
   </div>
 
-  <!-- MAIN LAYOUT -->
-  <div class="app-layout">
+  <!-- BODY LAYOUT -->
+  <div class="body-wrap">
 
-    <!-- LEFT SIDEBAR: Sport Categories -->
-    <aside class="sidebar-left" id="sidebarLeft">
-      <div class="sidebar-section">
-        <h3 class="sidebar-title">Sports</h3>
-        <ul class="sport-list" id="sportList">
-          <li class="sport-item active" data-sport="football">
-            <span class="sport-icon">⚽</span>
-            <span class="sport-name">Football</span>
-            <span class="sport-count">248</span>
+    <!-- LEFT: Sport Nav -->
+    <aside class="left-panel" id="leftPanel">
+      <div class="panel-section">
+        <div class="panel-heading">SPORTS</div>
+        <ul class="sport-nav" id="sportNav">
+          <li class="sn-item active" data-sport="football">
+            <span class="sn-icon">⚽</span>
+            <span class="sn-name">Football</span>
+            <span class="sn-badge">248</span>
           </li>
-          <li class="sport-item" data-sport="basketball">
-            <span class="sport-icon">🏀</span>
-            <span class="sport-name">Basketball</span>
-            <span class="sport-count">38</span>
+          <li class="sn-item" data-sport="basketball">
+            <span class="sn-icon">🏀</span>
+            <span class="sn-name">Basketball</span>
+            <span class="sn-badge">38</span>
           </li>
-          <li class="sport-item" data-sport="tennis">
-            <span class="sport-icon">🎾</span>
-            <span class="sport-name">Tennis</span>
-            <span class="sport-count">62</span>
+          <li class="sn-item" data-sport="tennis">
+            <span class="sn-icon">🎾</span>
+            <span class="sn-name">Tennis</span>
+            <span class="sn-badge">62</span>
           </li>
-          <li class="sport-item" data-sport="cricket">
-            <span class="sport-icon">🏏</span>
-            <span class="sport-name">Cricket</span>
-            <span class="sport-count">14</span>
+          <li class="sn-item" data-sport="cricket">
+            <span class="sn-icon">🏏</span>
+            <span class="sn-name">Cricket</span>
+            <span class="sn-badge">14</span>
           </li>
-          <li class="sport-item" data-sport="rugby">
-            <span class="sport-icon">🏉</span>
-            <span class="sport-name">Rugby</span>
-            <span class="sport-count">22</span>
+          <li class="sn-item" data-sport="rugby">
+            <span class="sn-icon">🏉</span>
+            <span class="sn-name">Rugby Union</span>
+            <span class="sn-badge">22</span>
           </li>
-          <li class="sport-item" data-sport="volleyball">
-            <span class="sport-icon">🏐</span>
-            <span class="sport-name">Volleyball</span>
-            <span class="sport-count">18</span>
+          <li class="sn-item" data-sport="volleyball">
+            <span class="sn-icon">🏐</span>
+            <span class="sn-name">Volleyball</span>
+            <span class="sn-badge">18</span>
           </li>
-          <li class="sport-item" data-sport="boxing">
-            <span class="sport-icon">🥊</span>
-            <span class="sport-name">Boxing</span>
-            <span class="sport-count">8</span>
+          <li class="sn-item" data-sport="boxing">
+            <span class="sn-icon">🥊</span>
+            <span class="sn-name">Boxing</span>
+            <span class="sn-badge">8</span>
           </li>
-          <li class="sport-item" data-sport="golf">
-            <span class="sport-icon">⛳</span>
-            <span class="sport-name">Golf</span>
-            <span class="sport-count">5</span>
+          <li class="sn-item" data-sport="golf">
+            <span class="sn-icon">⛳</span>
+            <span class="sn-name">Golf</span>
+            <span class="sn-badge">5</span>
           </li>
         </ul>
       </div>
-      <div class="sidebar-section">
-        <h3 class="sidebar-title">Quick Links</h3>
-        <ul class="quick-links">
-          <li><a href="#">🏆 Top Leagues</a></li>
-          <li><a href="#">⭐ Favourites</a></li>
-          <li><a href="#">📅 Today's Matches</a></li>
-          <li><a href="#">🔥 Jackpot</a></li>
+      <div class="panel-section">
+        <div class="panel-heading">MY ACCOUNT</div>
+        <ul class="account-nav">
+          <li><a href="#"><span>📋</span> My Bets</a></li>
+          <li><a href="#"><span>💳</span> Deposit</a></li>
+          <li><a href="#"><span>💸</span> Withdraw</a></li>
+          <li><a href="#"><span>👤</span> Profile</a></li>
         </ul>
       </div>
     </aside>
 
-    <!-- MAIN CONTENT -->
-    <main class="main-content" id="mainContent">
+    <!-- CENTER: Content -->
+    <main class="center-panel">
 
-      <!-- SECTION: Sports (default) -->
-      <section class="content-section active" id="section-sports">
+      <!-- SPORTS SECTION -->
+      <section class="pg active" id="pg-sports">
 
-        <!-- Top Match Banner -->
-        <div class="featured-match" id="featuredMatch">
-          <div class="featured-inner">
-            <div class="featured-badge">⭐ Featured Match</div>
-            <div class="featured-teams">
-              <div class="feat-team">
-                <span class="feat-team-name">Arsenal</span>
-                <img src="https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg" alt="Arsenal" class="team-crest" onerror="this.style.display='none'" />
+        <!-- Hero Banner Carousel -->
+        <div class="hero-banner" id="heroBanner">
+          <div class="hero-slide active" style="background:linear-gradient(120deg,#1a0000 0%,#3d0000 60%,#1a0000 100%)">
+            <div class="hero-content">
+              <div class="hero-tag">⚽ PREMIER LEAGUE</div>
+              <div class="hero-teams">
+                <span>Arsenal</span>
+                <div class="hero-vs">
+                  <div class="hero-kickoff">TODAY 20:00</div>
+                  <div class="hero-vs-text">VS</div>
+                </div>
+                <span>Man United</span>
               </div>
-              <div class="feat-vs">
-                <span class="feat-time">Today 20:00</span>
-                <span>VS</span>
+              <div class="hero-odds">
+                <button class="odd-btn" data-match="Arsenal vs Man United" data-market="1X2" data-selection="Arsenal Win" data-odd="1.85" data-id="h-001-1">
+                  <span class="ob-label">1</span><span class="ob-val">1.85</span>
+                </button>
+                <button class="odd-btn" data-match="Arsenal vs Man United" data-market="1X2" data-selection="Draw" data-odd="3.40" data-id="h-001-x">
+                  <span class="ob-label">X</span><span class="ob-val">3.40</span>
+                </button>
+                <button class="odd-btn" data-match="Arsenal vs Man United" data-market="1X2" data-selection="Man United Win" data-odd="4.50" data-id="h-001-2">
+                  <span class="ob-label">2</span><span class="ob-val">4.50</span>
+                </button>
               </div>
-              <div class="feat-team">
-                <img src="https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg" alt="Man Utd" class="team-crest" onerror="this.style.display='none'" />
-                <span class="feat-team-name">Man United</span>
-              </div>
-            </div>
-            <div class="featured-odds">
-              <button class="odd-btn feat-odd" data-match="Arsenal vs Man United" data-market="1X2" data-selection="Arsenal Win" data-odd="1.85">
-                <span class="odd-label">1</span>
-                <span class="odd-value">1.85</span>
-              </button>
-              <button class="odd-btn feat-odd" data-match="Arsenal vs Man United" data-market="1X2" data-selection="Draw" data-odd="3.40">
-                <span class="odd-label">X</span>
-                <span class="odd-value">3.40</span>
-              </button>
-              <button class="odd-btn feat-odd" data-match="Arsenal vs Man United" data-market="1X2" data-selection="Man United Win" data-odd="4.50">
-                <span class="odd-label">2</span>
-                <span class="odd-value">4.50</span>
-              </button>
             </div>
           </div>
         </div>
 
-        <!-- Filter Bar -->
-        <div class="filter-bar">
-          <div class="filter-tabs">
-            <button class="filter-tab active" data-filter="all">All</button>
-            <button class="filter-tab" data-filter="today">Today</button>
-            <button class="filter-tab" data-filter="tomorrow">Tomorrow</button>
-            <button class="filter-tab" data-filter="live">🔴 Live</button>
+        <!-- Filter row -->
+        <div class="filter-row">
+          <div class="filter-pills">
+            <button class="fpill active" data-filter="all">All</button>
+            <button class="fpill" data-filter="today">Today</button>
+            <button class="fpill" data-filter="tomorrow">Tomorrow</button>
+            <button class="fpill live-pill" data-filter="live"><span class="live-pip"></span>Live</button>
           </div>
-          <div class="market-selector">
-            <select class="market-select" id="marketSelect">
-              <option value="1x2">1 X 2</option>
-              <option value="gg-ng">GG/NG</option>
-              <option value="ou25">Over/Under 2.5</option>
-              <option value="dc">Double Chance</option>
-            </select>
-          </div>
+          <select class="mkt-sel" id="mktSel">
+            <option value="1x2">1 X 2</option>
+            <option value="dc">Double Chance</option>
+            <option value="ou25">Over / Under 2.5</option>
+            <option value="gg">GG / NG</option>
+            <option value="btts">BTTS</option>
+          </select>
         </div>
 
-        <!-- Matches Container -->
-        <div class="matches-container" id="matchesContainer">
-          <!-- Populated by JS -->
-        </div>
-
+        <!-- Matches -->
+        <div id="matchesWrap"></div>
       </section>
 
-      <!-- SECTION: Live -->
-      <section class="content-section" id="section-live">
-        <div class="section-header">
-          <h2><span class="live-dot"></span> Live Matches</h2>
+      <!-- LIVE SECTION -->
+      <section class="pg" id="pg-live">
+        <div class="pg-header">
+          <h2><span class="live-pip"></span> &nbsp;Live Betting</h2>
         </div>
-        <div class="matches-container" id="liveMatchesContainer">
-          <!-- Populated by JS -->
-        </div>
+        <div id="liveWrap"></div>
       </section>
 
-      <!-- SECTION: Casino -->
-      <section class="content-section" id="section-casino">
-        <div class="section-header">
-          <h2>🎰 Casino Games</h2>
-        </div>
-        <div class="casino-grid" id="casinoGrid">
-          <!-- Populated by JS -->
-        </div>
+      <!-- CASINO SECTION -->
+      <section class="pg" id="pg-casino">
+        <div class="pg-header"><h2>🎰 Casino</h2></div>
+        <div class="casino-grid" id="casinoGrid"></div>
       </section>
 
-      <!-- SECTION: Virtual -->
-      <section class="content-section" id="section-virtual">
-        <div class="section-header">
-          <h2>🎮 Virtual Sports</h2>
-        </div>
-        <div class="virtual-grid" id="virtualGrid">
-          <!-- Populated by JS -->
+      <!-- VIRTUAL SECTION -->
+      <section class="pg" id="pg-virtual">
+        <div class="pg-header"><h2>🎮 Virtual Sports</h2></div>
+        <div class="virtual-grid" id="virtualGrid"></div>
+      </section>
+
+      <!-- JACKPOT SECTION -->
+      <section class="pg" id="pg-jackpot">
+        <div class="jackpot-hero">
+          <div class="jp-amount">GH₵ 1,250,000</div>
+          <div class="jp-label">JACKPOT PRIZE</div>
+          <div class="jp-sub">Pick 6 correct scores to win</div>
+          <div class="jp-countdown">Next draw in: <strong id="jpCd">02:45:00</strong></div>
+          <button class="btn-deposit" style="margin-top:20px;font-size:1rem;padding:14px 40px">Enter Jackpot</button>
         </div>
       </section>
 
-      <!-- SECTION: Results -->
-      <section class="content-section" id="section-results">
-        <div class="section-header">
-          <h2>📊 Results</h2>
-        </div>
-        <div id="resultsContainer">
-          <!-- Populated by JS -->
-        </div>
-      </section>
-
-      <!-- SECTION: Promos -->
-      <section class="content-section" id="section-promos">
-        <div class="section-header">
-          <h2>🎁 Promotions</h2>
-        </div>
-        <div class="promos-grid" id="promosGrid">
-          <!-- Populated by JS -->
-        </div>
+      <!-- PROMOS SECTION -->
+      <section class="pg" id="pg-promos">
+        <div class="pg-header"><h2>🎁 Promotions</h2></div>
+        <div class="promos-grid" id="promosGrid"></div>
       </section>
 
     </main>
 
-    <!-- RIGHT SIDEBAR: Bet Slip -->
-    <aside class="sidebar-right" id="sidebarRight">
-      <div class="betslip-wrapper">
-        <div class="betslip-header">
-          <h3 class="betslip-title">Bet Slip</h3>
-          <span class="betslip-count" id="slipCount">0</span>
-          <button class="betslip-clear" id="clearSlip" title="Clear all">🗑</button>
+    <!-- RIGHT: Bet Slip -->
+    <aside class="right-panel" id="rightPanel">
+      <div class="betslip">
+        <div class="bs-header">
+          <button class="bs-tab active" data-type="single">Single</button>
+          <button class="bs-tab" data-type="multi">Multi</button>
+          <button class="bs-tab" data-type="system">System</button>
+          <span class="bs-count" id="bsCount">0</span>
+          <button class="bs-trash" id="bsTrash" title="Clear all">🗑</button>
         </div>
 
-        <div class="betslip-tabs">
-          <button class="slip-tab active" data-type="single">Single</button>
-          <button class="slip-tab" data-type="accumulator">Accumulator</button>
-          <button class="slip-tab" data-type="system">System</button>
-        </div>
-
-        <div class="betslip-selections" id="betSelections">
-          <div class="empty-slip" id="emptySlip">
-            <div class="empty-icon">🎯</div>
-            <p>Your bet slip is empty.</p>
-            <p class="empty-hint">Click on odds to add selections.</p>
+        <div class="bs-body" id="bsBody">
+          <div class="bs-empty" id="bsEmpty">
+            <div class="bse-icon">🎯</div>
+            <p>Your betslip is empty</p>
+            <small>Click on odds to add selections</small>
           </div>
         </div>
 
-        <div class="betslip-footer" id="betslipFooter" style="display:none">
-          <div class="stake-section">
-            <label class="stake-label">Stake (GH₵)</label>
-            <div class="stake-input-wrap">
-              <input type="number" class="stake-input" id="stakeInput" placeholder="0.00" min="1" step="0.50" />
+        <div class="bs-footer" id="bsFooter" style="display:none">
+          <div class="bs-stake-row">
+            <label>Stake (GH₵)</label>
+            <input type="number" id="stakeInput" class="stake-input" placeholder="0.00" min="1" />
+          </div>
+          <div class="quick-amounts">
+            <button class="qa" data-a="5">5</button>
+            <button class="qa" data-a="10">10</button>
+            <button class="qa" data-a="20">20</button>
+            <button class="qa" data-a="50">50</button>
+            <button class="qa" data-a="100">100</button>
+            <button class="qa" data-a="200">200</button>
+          </div>
+          <div class="bs-totals">
+            <div class="bst-row">
+              <span>Total Odds</span>
+              <strong id="totalOdds">1.00</strong>
             </div>
-            <div class="quick-stakes">
-              <button class="quick-stake" data-amount="5">5</button>
-              <button class="quick-stake" data-amount="10">10</button>
-              <button class="quick-stake" data-amount="20">20</button>
-              <button class="quick-stake" data-amount="50">50</button>
-              <button class="quick-stake" data-amount="100">100</button>
-              <button class="quick-stake" data-amount="200">200</button>
+            <div class="bst-row win-row">
+              <span>Potential Winnings</span>
+              <strong id="potWin" class="win-val">GH₵ 0.00</strong>
             </div>
           </div>
-
-          <div class="bet-summary">
-            <div class="summary-row">
-              <span>Total Odds:</span>
-              <span class="summary-value" id="totalOdds">0.00</span>
-            </div>
-            <div class="summary-row potential">
-              <span>Potential Win:</span>
-              <span class="summary-value highlight" id="potentialWin">GH₵ 0.00</span>
-            </div>
-          </div>
-
-          <button class="btn-place-bet" id="placeBetBtn">Place Bet</button>
-          <p class="bet-terms">Min stake: GH₵1 | Max win: GH₵500,000</p>
+          <button class="btn-place" id="placeBetBtn">PLACE BET</button>
+          <p class="bs-note">Min: GH₵1 &nbsp;|&nbsp; Max win: GH₵500,000</p>
         </div>
       </div>
 
-      <!-- My Bets -->
-      <div class="my-bets-section">
-        <div class="my-bets-header">
-          <h4>My Bets</h4>
-          <span class="bets-count" id="myBetsCount">0</span>
+      <!-- Open bets -->
+      <div class="open-bets">
+        <div class="ob-head">
+          <span>Open Bets</span>
+          <span class="ob-count" id="obCount">0</span>
         </div>
-        <div class="my-bets-list" id="myBetsList">
-          <p class="no-bets">No bets placed yet.</p>
-        </div>
+        <div id="obList"><p class="no-bets">No open bets</p></div>
       </div>
     </aside>
   </div>
 
-  <!-- JACKPOT TICKER -->
-  <div class="jackpot-ticker">
-    <span class="ticker-label">🔥 JACKPOT</span>
-    <div class="ticker-scroll">
-      <span class="ticker-text" id="tickerText">
-        Current Jackpot: <strong>GH₵ 1,250,000</strong> &nbsp;|&nbsp;
-        Last Winner: Kwame A. won GH₵ 48,500 &nbsp;|&nbsp;
-        Pick 6 matches correctly to win the Jackpot! &nbsp;|&nbsp;
-        Next draw: Today at 22:00 &nbsp;|&nbsp;
-        Entries close in: <strong id="jackpotCountdown">02:45:30</strong>
+  <!-- LIVE TICKER -->
+  <div class="live-ticker">
+    <span class="lt-label">🔥 LIVE</span>
+    <div class="lt-track">
+      <span class="lt-text" id="ltText">
+        Chelsea 1 - 1 Liverpool (67') &nbsp;|&nbsp;
+        Bayern Munich 3 - 1 Dortmund (82') &nbsp;|&nbsp;
+        Atletico 2 - 0 Sevilla (78') &nbsp;|&nbsp;
+        RB Leipzig 0 - 1 Leverkusen (55') &nbsp;|&nbsp;
+        Jackpot: <strong>GH₵ 1,250,000</strong> — Draw at 22:00 &nbsp;|&nbsp;
+        Last winner: Kwame A. — GH₵ 48,500
       </span>
-    </div>
-  </div>
-
-  <!-- MODAL: Deposit -->
-  <div class="modal-overlay" id="depositModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Deposit Funds</h3>
-        <button class="modal-close" data-modal="depositModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="payment-methods">
-          <button class="pay-method active" data-method="momo">
-            <span>📱</span> Mobile Money
-          </button>
-          <button class="pay-method" data-method="card">
-            <span>💳</span> Card
-          </button>
-          <button class="pay-method" data-method="bank">
-            <span>🏦</span> Bank Transfer
-          </button>
-        </div>
-        <div class="deposit-form" id="depositForm">
-          <div class="form-group">
-            <label>Amount (GH₵)</label>
-            <input type="number" id="depositAmount" placeholder="50.00" min="10" class="form-input" />
-          </div>
-          <div class="form-group" id="momoFields">
-            <label>Mobile Number</label>
-            <input type="tel" id="momoNumber" placeholder="0XX XXX XXXX" class="form-input" />
-            <label style="margin-top:12px">Network</label>
-            <select class="form-input" id="momoNetwork">
-              <option>MTN Mobile Money</option>
-              <option>Vodafone Cash</option>
-              <option>AirtelTigo Money</option>
-            </select>
-          </div>
-          <button class="btn btn-deposit btn-full" id="confirmDeposit">Confirm Deposit</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Login -->
-  <div class="modal-overlay" id="loginModal">
-    <div class="modal modal-sm">
-      <div class="modal-header">
-        <h3>Login to SportyWin</h3>
-        <button class="modal-close" data-modal="loginModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Phone / Email</label>
-          <input type="text" id="loginUser" placeholder="0XX XXX XXXX or email" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="loginPass" placeholder="••••••••" class="form-input" />
-        </div>
-        <button class="btn btn-deposit btn-full" id="confirmLogin">Login</button>
-        <p class="modal-switch">Don't have an account? <a href="#" id="switchToRegister">Register</a></p>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Register -->
-  <div class="modal-overlay" id="registerModal">
-    <div class="modal modal-sm">
-      <div class="modal-header">
-        <h3>Create Account</h3>
-        <button class="modal-close" data-modal="registerModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Full Name</label>
-          <input type="text" id="regName" placeholder="John Doe" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label>Phone Number</label>
-          <input type="tel" id="regPhone" placeholder="0XX XXX XXXX" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="regEmail" placeholder="john@email.com" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="regPass" placeholder="Min 6 characters" class="form-input" />
-        </div>
-        <div class="form-group checkbox-group">
-          <input type="checkbox" id="regTerms" />
-          <label for="regTerms">I agree to the <a href="#">Terms & Conditions</a></label>
-        </div>
-        <button class="btn btn-deposit btn-full" id="confirmRegister">Create Account</button>
-        <p class="modal-switch">Already have an account? <a href="#" id="switchToLogin">Login</a></p>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Bet Confirmation -->
-  <div class="modal-overlay" id="betConfirmModal">
-    <div class="modal modal-sm">
-      <div class="modal-header">
-        <h3>Bet Placed! 🎉</h3>
-        <button class="modal-close" data-modal="betConfirmModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="bet-success">
-          <div class="success-icon">✅</div>
-          <p id="betConfirmText">Your bet has been placed successfully!</p>
-          <div class="bet-ref">Bet ID: <strong id="betRef"></strong></div>
-        </div>
-      </div>
     </div>
   </div>
 
   <!-- FOOTER -->
   <footer class="site-footer">
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <div class="logo">
-          <span class="logo-icon">SW</span>
-          <span class="logo-text">SportyWin</span>
-        </div>
-        <p class="footer-tagline">Bet Smart. Win Big. Enjoy Responsibly.</p>
-        <div class="responsible-gaming">
+    <div class="sf-inner">
+      <div class="sf-brand">
+        <img src="assets/logo.svg" alt="SportyBet" class="sf-logo" />
+        <span class="sf-name">SportyBet</span>
+        <p class="sf-tag">Bet on Sports. Win Big.</p>
+        <div class="sf-badges">
           <span>18+</span>
-          <span>Gamble Responsibly</span>
+          <span>GGC Licensed</span>
+          <span>Responsible Gambling</span>
         </div>
       </div>
-      <div class="footer-links">
-        <div class="footer-col">
-          <h4>Products</h4>
-          <ul>
-            <li><a href="#">Sports Betting</a></li>
-            <li><a href="#">Live Betting</a></li>
-            <li><a href="#">Casino</a></li>
-            <li><a href="#">Virtual Sports</a></li>
-            <li><a href="#">Jackpot</a></li>
-          </ul>
+      <div class="sf-links">
+        <div class="sfl-col">
+          <h4>Sports</h4>
+          <a href="#">Football</a><a href="#">Basketball</a>
+          <a href="#">Tennis</a><a href="#">Cricket</a>
+          <a href="#">Virtual Sports</a>
         </div>
-        <div class="footer-col">
+        <div class="sfl-col">
           <h4>Account</h4>
-          <ul>
-            <li><a href="#">Register</a></li>
-            <li><a href="#">Login</a></li>
-            <li><a href="#">Deposit</a></li>
-            <li><a href="#">Withdraw</a></li>
-            <li><a href="#">My Bets</a></li>
-          </ul>
+          <a href="#">Register</a><a href="#">Login</a>
+          <a href="#">Deposit</a><a href="#">Withdraw</a>
+          <a href="#">My Bets</a>
         </div>
-        <div class="footer-col">
-          <h4>Support</h4>
-          <ul>
-            <li><a href="#">Help Center</a></li>
-            <li><a href="#">Live Chat</a></li>
-            <li><a href="#">Contact Us</a></li>
-            <li><a href="#">Responsible Gaming</a></li>
-            <li><a href="#">Self-Exclusion</a></li>
-          </ul>
+        <div class="sfl-col">
+          <h4>Help</h4>
+          <a href="#">How to Bet</a><a href="#">Live Chat</a>
+          <a href="#">FAQ</a><a href="#">Contact Us</a>
+          <a href="#">Responsible Gaming</a>
         </div>
-        <div class="footer-col">
+        <div class="sfl-col">
           <h4>Legal</h4>
-          <ul>
-            <li><a href="#">Terms & Conditions</a></li>
-            <li><a href="#">Privacy Policy</a></li>
-            <li><a href="#">Cookie Policy</a></li>
-            <li><a href="#">Betting Rules</a></li>
-            <li><a href="#">Licensing</a></li>
-          </ul>
+          <a href="#">Terms &amp; Conditions</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Betting Rules</a>
+          <a href="#">Cookie Policy</a>
         </div>
       </div>
     </div>
-    <div class="footer-bottom">
-      <p>© 2025 SportyWin. All rights reserved. Licensed by Ghana Gaming Commission (GGC/BET/2025/001).</p>
-      <p class="footer-disclaimer">Betting involves risk. Please bet responsibly. Only bet what you can afford to lose.</p>
-      <div class="payment-logos">
-        <span class="pay-logo">MTN MoMo</span>
-        <span class="pay-logo">Vodafone Cash</span>
-        <span class="pay-logo">AirtelTigo</span>
-        <span class="pay-logo">Visa</span>
-        <span class="pay-logo">Mastercard</span>
+    <div class="sf-bottom">
+      <p>© 2025 SportyBet Ghana. Licensed by Ghana Gaming Commission — Licence No. GGC/BET/2025/001</p>
+      <p class="sf-warn">Gambling involves risk. Please bet responsibly. 18+ only.</p>
+      <div class="pay-methods">
+        <span>MTN MoMo</span><span>Vodafone Cash</span>
+        <span>AirtelTigo</span><span>Visa</span><span>Mastercard</span>
       </div>
     </div>
   </footer>
+
+  <!-- MODAL: Deposit -->
+  <div class="modal-bg" id="modalDeposit">
+    <div class="modal">
+      <div class="modal-hd">
+        <span>Deposit Funds</span>
+        <button class="modal-x" data-close="modalDeposit">✕</button>
+      </div>
+      <div class="modal-bd">
+        <div class="pay-tabs">
+          <button class="ptab active" data-method="momo">📱 Mobile Money</button>
+          <button class="ptab" data-method="card">💳 Card</button>
+          <button class="ptab" data-method="bank">🏦 Bank</button>
+        </div>
+        <div class="form-g">
+          <label>Amount (GH₵)</label>
+          <input type="number" id="depAmt" placeholder="Minimum GH₵ 20" class="fi" min="20" />
+        </div>
+        <div id="momoFields">
+          <div class="form-g">
+            <label>Mobile Number</label>
+            <input type="tel" id="momoNum" placeholder="0XX XXX XXXX" class="fi" />
+          </div>
+          <div class="form-g">
+            <label>Network</label>
+            <select class="fi" id="momoNet">
+              <option>MTN Mobile Money</option>
+              <option>Vodafone Cash</option>
+              <option>AirtelTigo Money</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-deposit btn-full" id="doDeposit">Confirm Deposit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Login -->
+  <div class="modal-bg" id="modalLogin">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <span>Login</span>
+        <button class="modal-x" data-close="modalLogin">✕</button>
+      </div>
+      <div class="modal-bd">
+        <div class="form-g">
+          <label>Phone Number / Email</label>
+          <input type="text" id="lgUser" placeholder="Enter phone or email" class="fi" />
+        </div>
+        <div class="form-g">
+          <label>Password</label>
+          <input type="password" id="lgPass" placeholder="Enter password" class="fi" />
+        </div>
+        <button class="btn-deposit btn-full" id="doLogin">Login</button>
+        <a href="#" class="form-link" id="toForgot">Forgot Password?</a>
+        <p class="form-switch">New to SportyBet? <a href="#" id="toJoin">Join Now</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Register -->
+  <div class="modal-bg" id="modalJoin">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <span>Create Account</span>
+        <button class="modal-x" data-close="modalJoin">✕</button>
+      </div>
+      <div class="modal-bd">
+        <div class="form-g">
+          <label>Full Name</label>
+          <input type="text" id="rgName" placeholder="John Doe" class="fi" />
+        </div>
+        <div class="form-g">
+          <label>Phone Number</label>
+          <input type="tel" id="rgPhone" placeholder="0XX XXX XXXX" class="fi" />
+        </div>
+        <div class="form-g">
+          <label>Email Address</label>
+          <input type="email" id="rgEmail" placeholder="john@email.com" class="fi" />
+        </div>
+        <div class="form-g">
+          <label>Password</label>
+          <input type="password" id="rgPass" placeholder="Min. 6 characters" class="fi" />
+        </div>
+        <div class="form-g form-check">
+          <input type="checkbox" id="rgTerms" />
+          <label for="rgTerms">I am 18+ and agree to <a href="#">Terms &amp; Conditions</a></label>
+        </div>
+        <button class="btn-deposit btn-full" id="doJoin">Create Account</button>
+        <p class="form-switch">Already have an account? <a href="#" id="toLogin">Login</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Bet Placed -->
+  <div class="modal-bg" id="modalBetOk">
+    <div class="modal modal-sm">
+      <div class="modal-hd">
+        <span>Bet Placed ✅</span>
+        <button class="modal-x" data-close="modalBetOk">✕</button>
+      </div>
+      <div class="modal-bd" style="text-align:center;padding:30px 20px">
+        <div style="font-size:3rem;margin-bottom:12px">🎉</div>
+        <p id="betOkMsg" style="font-size:0.9rem;margin-bottom:10px"></p>
+        <div class="bet-ref-box">Bet ID: <strong id="betOkId"></strong></div>
+      </div>
+    </div>
+  </div>
 
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
