@@ -9,7 +9,8 @@ const state = {
   section: 'sports',
   filter: 'all',
   balance: 5000.00,
-  jpSecs: 9900
+  jpSecs: 9900,
+  casinoCat: 'all',
 };
 
 const $ = id => document.getElementById(id);
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderLive();
   renderCasino();
   renderVirtual();
+  renderVirtualEntrance();
   renderPromos();
   bindAll();
   tickClock();
@@ -135,7 +137,21 @@ function renderLive() {
 
 // ── CASINO / VIRTUAL / PROMOS ─────────────────────────────────
 function renderCasino() {
-  $('casinoGrid').innerHTML = CASINO_GAMES.map(g => `
+  const cats = [
+    { id:'all',     label:'All' },
+    { id:'crash',   label:'🚀 Crash' },
+    { id:'sporty',  label:'⚽ Sporty' },
+    { id:'table',   label:'🎲 Table' },
+    { id:'numbers', label:'🔢 Numbers' },
+    { id:'live',    label:'🔴 Live' },
+  ];
+  const ac = state.casinoCat;
+  $('casinoCats').innerHTML = cats.map(c =>
+    `<button class="cat-btn${ac===c.id?' active':''}" onclick="switchCasinoCat('${c.id}')">${c.label}</button>`
+  ).join('');
+
+  const games = ac === 'all' ? CASINO_GAMES : CASINO_GAMES.filter(g => g.cat === ac);
+  $('casinoGrid').innerHTML = games.map(g => `
     <div class="casino-card" onclick="toast('${g.name} — coming soon!','info')">
       <div class="cc-thumb">
         <img src="${g.img}" alt="${g.name}" class="cc-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
@@ -145,6 +161,11 @@ function renderCasino() {
       <div class="cc-name">${g.name}</div>
       <div class="cc-provider">${g.provider}</div>
     </div>`).join('');
+}
+
+function switchCasinoCat(cat) {
+  state.casinoCat = cat;
+  renderCasino();
 }
 
 function renderVirtual() {
@@ -158,6 +179,23 @@ function renderVirtual() {
       <div class="vc-desc">${v.desc}</div>
       <span class="vc-live">${v.badge}</span>
     </div>`).join('');
+}
+
+function renderVirtualEntrance() {
+  const el = $('virtualEntrance');
+  if (!el) return;
+  el.innerHTML = `<div class="ve-grid">${VIRTUAL_ENTRANCE.map(v => {
+    const badge = v.label ? `<span class="ve-badge ${v.label}">${v.label}</span>` : '';
+    const imgTag = v.img
+      ? `<img src="${v.img}" alt="${v.name}" class="ve-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />`
+      : '';
+    const iconTag = `<div class="ve-icon"${v.img ? ' style="display:none"' : ''}>${v.icon}</div>`;
+    return `<div class="ve-card${v.size==='Large'?' large':''}" onclick="toast('Opening ${v.name}…','info')">
+      <div class="ve-img-wrap">${imgTag}${iconTag}</div>
+      ${badge}
+      <div class="ve-name-overlay">${v.name}</div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function renderPromos() {
