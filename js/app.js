@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderCasino();
   renderVirtual();
   renderVirtualEntrance();
+  renderQuickGames();
   renderPromos();
   bindAll();
   tickClock();
@@ -198,6 +199,19 @@ function renderVirtualEntrance() {
   }).join('')}</div>`;
 }
 
+function renderQuickGames() {
+  const el = $('quickGamesRow');
+  if (!el) return;
+  const ids = ['c001','c002','c003','c009','c027'];
+  const games = CASINO_GAMES.filter(g => ids.includes(g.id));
+  el.innerHTML = games.map(g => `
+    <div class="qg-card" onclick="switchSection('casino')">
+      <img src="${g.img}" alt="${g.name}" class="qg-img" loading="lazy" onerror="this.style.opacity='.3'" />
+      ${g.hot ? '<span class="qg-hot-badge">HOT</span>' : ''}
+      <span class="qg-name">${g.name}</span>
+    </div>`).join('');
+}
+
 function renderPromos() {
   $('promosGrid').innerHTML = PROMOTIONS.map(p => `
     <div class="promo-card">
@@ -273,14 +287,31 @@ function removeFromSlip(id) {
   renderSlip();
 }
 
+function getAccaBoost(n) {
+  const table = [0, 0, 5, 15, 30, 50, 75, 100, 150, 200];
+  return n < table.length ? table[n] : Math.min(1000, 200 + (n - 9) * 100);
+}
+
 function recalc() {
   const stake = parseFloat($('stakeInput')?.value || 0);
-  const totalOdds = state.slip.reduce((a, b) => a * b.odd, 1);
-  const win = stake > 0 ? stake * totalOdds : 0;
+  const count = state.slip.length;
+  const baseOdds = state.slip.reduce((a, b) => a * b.odd, 1);
+  const boostPct = getAccaBoost(count);
+  const boostedOdds = boostPct > 0 ? baseOdds * (1 + boostPct / 100) : baseOdds;
+  const win = stake > 0 ? stake * boostedOdds : 0;
   const el = $('totalOdds');
   const we = $('potWin');
-  if (el) el.textContent = totalOdds.toFixed(2);
+  if (el) el.textContent = boostedOdds.toFixed(2);
   if (we) we.textContent = `GH₵ ${win.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`;
+  const bar = $('accaBoostBar');
+  if (bar) {
+    if (boostPct > 0) {
+      bar.style.display = 'flex';
+      bar.innerHTML = `<span class="ab-icon">⚡</span><span class="ab-label">ACCA Boost</span><span class="ab-pct">+${boostPct}%</span><div class="ab-detail">Base: ${baseOdds.toFixed(2)} → Boosted: <span>${boostedOdds.toFixed(2)}</span></div>`;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
 }
 
 // ── PLACE BET ─────────────────────────────────────────────────
@@ -290,7 +321,9 @@ function placeBet() {
   if (stake > state.balance) { toast('Insufficient balance!', 'err'); return; }
   if (!state.slip.length) { toast('Add selections first', 'err'); return; }
 
-  const odds = state.slip.reduce((a, b) => a * b.odd, 1);
+  const baseOdds = state.slip.reduce((a, b) => a * b.odd, 1);
+  const boostPct = getAccaBoost(state.slip.length);
+  const odds = boostPct > 0 ? baseOdds * (1 + boostPct / 100) : baseOdds;
   const win = (stake * odds).toFixed(2);
   const id = 'SB-' + Date.now().toString(36).toUpperCase();
 
@@ -413,6 +446,12 @@ function flickerOdds() {
   }, 2200);
 }
 
+function handleSearchResult(sport) {
+  $('searchResults').style.display = 'none';
+  if ($('searchInput')) $('searchInput').value = '';
+  switchSport(sport);
+}
+
 // ── BIND ALL ──────────────────────────────────────────────────
 function bindAll() {
   // Promo strip close
@@ -525,4 +564,34 @@ function bindAll() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') $$('.modal-bg.open').forEach(m => m.classList.remove('open'));
   });
+
+  // Search
+  const srInput = $('searchInput');
+  const srResults = $('searchResults');
+  if (srInput && srResults) {
+    srInput.addEventListener('input', () => {
+      const q = srInput.value.trim().toLowerCase();
+      if (q.length < 2) { srResults.style.display = 'none'; return; }
+      const hits = [];
+      Object.entries(MATCHES_DATA).forEach(([sport, leagues]) => {
+        leagues.forEach(lg => {
+          lg.matches.forEach(m => {
+            if (m.home.toLowerCase().includes(q) || m.away.toLowerCase().includes(q) || lg.league.toLowerCase().includes(q)) {
+              hits.push({ flag: lg.flag, league: lg.league, match: `${m.home} vs ${m.away}`, time: m.time, sport });
+            }
+          });
+        });
+      });
+      if (!hits.length) { srResults.style.display = 'none'; return; }
+      srResults.innerHTML = hits.slice(0, 6).map(h =>
+        `<div class="sr-item" onclick="handleSearchResult('${h.sport}')">
+          <span class="sr-flag">${h.flag}</span>
+          <div><div class="sr-match">${h.match}</div><div class="sr-league">${h.league} · ${h.time}</div></div>
+        </div>`).join('');
+      srResults.style.display = 'block';
+    });
+    document.addEventListener('click', e => {
+      if (!$('searchWrap')?.contains(e.target)) srResults.style.display = 'none';
+    });
+  }
 }

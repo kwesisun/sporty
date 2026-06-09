@@ -268,8 +268,8 @@ const RECENT_RESULTS = [
 const PROMOTIONS = [
   {
     id: "p001", icon: "🎁",
-    title: "Welcome Bonus — 100% up to GH₵500",
-    desc: "New customers get a 100% match bonus on their first deposit. Min deposit GH₵50. T&Cs apply.",
+    title: "Welcome Bonus — 150% up to GH₵500",
+    desc: "New customers get a 150% match bonus on their first deposit. Min deposit GH₵10. T&Cs apply.",
     cta: "Claim Now"
   },
   {

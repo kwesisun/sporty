@@ -401,6 +401,44 @@ select.fi{cursor:pointer}
 @keyframes tOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
 .toast.out{animation:tOut .25s ease forwards}
 
+/* ── Search Bar ── */
+.search-wrap{flex:1;max-width:240px;position:relative;margin:0 6px}
+.search-input{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);color:#fff;padding:6px 12px 6px 30px;border-radius:20px;font-size:.78rem;outline:none;transition:all .2s;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,.45)' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:10px center}
+.search-input::placeholder{color:rgba(255,255,255,.4)}
+.search-input:focus{background-color:rgba(0,0,0,.45);border-color:rgba(255,255,255,.4)}
+.search-results{position:absolute;top:calc(100% + 5px);left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);z-index:1200;max-height:290px;overflow-y:auto;box-shadow:var(--shadow);display:none}
+.sr-item{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(50,50,50,.5);transition:background .12s}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:var(--bg3)}
+.sr-flag{font-size:.95rem;flex-shrink:0}
+.sr-match{font-size:.8rem;font-weight:600;color:var(--text)}
+.sr-league{font-size:.67rem;color:var(--text3);margin-top:1px}
+
+/* ── Live Nav Count ── */
+.live-nav-count{background:var(--live-red);color:#fff;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:4px;vertical-align:middle}
+
+/* ── Quick Games Strip ── */
+.quick-games-strip{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 10px 10px}
+.qg-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.qg-title{font-size:.7rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.qg-all{font-size:.68rem;color:var(--red)}
+.qg-all:hover{color:var(--red-light)}
+.qg-row{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.qg-row::-webkit-scrollbar{display:none}
+.qg-card{position:relative;flex-shrink:0;width:88px;border-radius:var(--radius);overflow:hidden;cursor:pointer;background:var(--bg3);border:1px solid var(--border);transition:all .2s}
+.qg-card:hover{border-color:var(--red);transform:translateY(-2px)}
+.qg-img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
+.qg-name{display:block;font-size:.6rem;font-weight:600;text-align:center;padding:3px 4px 4px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qg-hot-badge{position:absolute;top:3px;left:3px;background:var(--red);color:#fff;font-size:.52rem;font-weight:700;padding:1px 4px;border-radius:6px;text-transform:uppercase;z-index:2}
+
+/* ── ACCA Boost Bar ── */
+.acca-boost-bar{background:linear-gradient(90deg,rgba(245,197,24,.14),rgba(245,197,24,.06));border:1px solid rgba(245,197,24,.35);border-radius:var(--radius);padding:7px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ab-icon{font-size:.85rem;flex-shrink:0}
+.ab-label{font-size:.65rem;font-weight:700;color:var(--yellow);text-transform:uppercase;letter-spacing:.5px;flex:1}
+.ab-pct{background:var(--yellow);color:#111;font-size:.65rem;font-weight:800;padding:2px 8px;border-radius:10px;flex-shrink:0}
+.ab-detail{width:100%;font-size:.64rem;color:var(--text3)}
+.ab-detail span{color:var(--green-odd-a);font-weight:700}
+
 /* ================================================================
    RESPONSIVE
 ================================================================ */

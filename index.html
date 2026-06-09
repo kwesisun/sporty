@@ -44,12 +44,18 @@
         </a>
         <a class="nav-item live-nav" data-section="live" href="#">
           <span class="live-pip"></span>Live
+          <span class="live-nav-count">6</span>
         </a>
         <a class="nav-item" data-section="casino" href="#">🎰 Casino</a>
         <a class="nav-item" data-section="virtual" href="#">🎮 Virtual</a>
         <a class="nav-item" data-section="jackpot" href="#">🏆 Jackpot</a>
         <a class="nav-item promo-nav" data-section="promos" href="#">🎁 Promotions</a>
       </nav>
+
+      <div class="search-wrap" id="searchWrap">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search teams, leagues…" autocomplete="off" />
+        <div class="search-results" id="searchResults"></div>
+      </div>
 
       <div class="header-right">
         <div class="bal-box" id="balBox">
@@ -67,7 +73,7 @@
   <div class="promo-strip" id="promoStrip">
     <div class="promo-strip-inner">
       <span class="ps-tag">NEW MEMBER</span>
-      <span class="ps-text">Get <strong>GH₵ 100 Free Bet</strong> on your first deposit of GH₵ 20 or more &nbsp;·&nbsp; Code: <strong>SB100</strong></span>
+      <span class="ps-text">Get <strong>150% Bonus up to GH₵ 500</strong> on your first deposit &nbsp;·&nbsp; Min GH₵ 10 &nbsp;·&nbsp; Code: <strong>SPORTY150</strong></span>
       <button class="ps-close" id="psClose">✕</button>
     </div>
   </div>
@@ -167,6 +173,15 @@
           </div>
         </div>
 
+        <!-- Quick Games Strip -->
+        <div class="quick-games-strip">
+          <div class="qg-header">
+            <span class="qg-title">⚡ Quick Games</span>
+            <a href="#" class="qg-all" onclick="switchSection('casino');return false;">All Games →</a>
+          </div>
+          <div class="qg-row" id="quickGamesRow"></div>
+        </div>
+
         <!-- Filter row -->
         <div class="filter-row">
           <div class="filter-pills">
@@ -263,6 +278,7 @@
             <button class="qa" data-a="100">100</button>
             <button class="qa" data-a="200">200</button>
           </div>
+          <div id="accaBoostBar" class="acca-boost-bar" style="display:none"></div>
           <div class="bs-totals">
             <div class="bst-row">
               <span>Total Odds</span>
